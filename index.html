@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>영어 학습 · 목록</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1c1b1a; --ink2:#5f5b57; --ink3:#928c86;
+  --line:#e6e2dc; --accent:#2f6f5e; --accent-soft:#e6f0ec; --accent-ink:#1d4a3e;
+  --shadow:0 1px 2px rgba(28,27,26,.05),0 6px 20px rgba(28,27,26,.06);
+  --r:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Segoe UI','Malgun Gothic',system-ui,sans-serif;
+  font-size:16px;line-height:1.55;letter-spacing:-.01em;
+  min-height:100dvh;display:flex;flex-direction:column;
+}
+.wrap{max-width:720px;margin:0 auto;padding:0 20px;width:100%}
+
+header{padding:56px 0 28px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;letter-spacing:-.02em;font-size:20px}
+.brand .dot{width:30px;height:30px;border-radius:9px;background:var(--accent);color:#fff;
+  display:grid;place-items:center;font-size:15px;font-weight:800}
+.lede{margin:16px 0 0;color:var(--ink2);font-size:15px}
+
+main{flex:1}
+.grid{display:grid;grid-template-columns:1fr;gap:16px;padding-bottom:48px}
+@media(min-width:560px){.grid{grid-template-columns:1fr 1fr}}
+
+.card{
+  display:block;text-decoration:none;color:inherit;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:22px 22px 20px;
+  transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.card:hover{transform:translateY(-3px);box-shadow:0 2px 6px rgba(28,27,26,.07),0 14px 34px rgba(28,27,26,.10);border-color:#d6d0c8}
+.card:active{transform:translateY(-1px)}
+.tag{display:inline-block;font-size:12px;font-weight:700;color:var(--accent-ink);
+  background:var(--accent-soft);border-radius:999px;padding:4px 11px;margin-bottom:14px}
+.card h2{margin:0 0 8px;font-size:19px;letter-spacing:-.02em}
+.card p{margin:0;color:var(--ink2);font-size:14px;line-height:1.5}
+.go{margin-top:16px;color:var(--accent-ink);font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px}
+
+footer{color:var(--ink3);font-size:13px;text-align:center;padding:20px 0 40px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="dot">A</span><span>영어 학습</span></div>
+    <p class="lede">아래에서 하나를 골라 시작하세요. 언제든 목록(☰)으로 돌아올 수 있어요.</p>
+  </header>
+
+  <main>
+    <div class="grid">
+      <a class="card" href="trainer.html">
+        <span class="tag">트레이너</span>
+        <h2>영어 자동화 트레이너</h2>
+        <p>플래시카드와 문제로 문장을 반복 훈련하고, 음성으로 읽어주는 학습 도구.</p>
+        <div class="go">시작하기 <span aria-hidden="true">→</span></div>
+      </a>
+
+      <a class="card" href="preposition-in.html">
+        <span class="tag">개념</span>
+        <h2>전치사 in — 범위다</h2>
+        <p>"안에"가 아니라 <b>범위</b>로 이해하는 전치사 in. 8단계로 짚어보는 개념 정리.</p>
+        <div class="go">시작하기 <span aria-hidden="true">→</span></div>
+      </a>
+    </div>
+  </main>
+
+  <footer>영어 학습 모음</footer>
+</div>
+</body>
+</html>

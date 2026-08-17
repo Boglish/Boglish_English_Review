@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>전치사 in — "안에"가 아니라 범위다</title>
+
+<style>
+/* ============================================================
+   TOKENS — drafting sheet: paper, graph grid, measurement red
+   ============================================================ */
+:root{
+  --paper:#F7F5F2;
+  --card:#FFFFFF;
+  --grid:#E7E1DA;
+  --grid-major:#D9D1C7;
+  --rule:#DDD5CC;
+  --ink:#1B1613;
+  --ink-2:#6C645C;
+  --ink-3:#9B938B;
+  --span:#C81E32;        /* 범위 — the double arrow */
+  --span-soft:#F5DCDF;
+  --point:#24549E;       /* 점 — after / on time */
+  --point-soft:#DCE5F3;
+  --good:#1C7A4E;
+  --good-soft:#DDEEE4;
+  --bad:#AE2A1E;
+  --bad-soft:#F6DEDA;
+  --shadow:0 1px 0 rgba(27,22,19,.04), 0 8px 28px -18px rgba(27,22,19,.35);
+
+  --f-ui:ui-monospace,"SF Mono",SFMono-Regular,"Cascadia Mono",Menlo,Consolas,"Liberation Mono","Apple SD Gothic Neo","Malgun Gothic",monospace;
+  --f-body:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI","Malgun Gothic","Noto Sans KR",sans-serif;
+  --f-spec:Georgia,"Iowan Old Style","Times New Roman",serif;
+
+  --step:clamp(1.5rem,3.2vw,2.75rem);
+  --maxw:74rem;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#141210; --card:#1C1917; --grid:#262220; --grid-major:#332D29; --rule:#2F2A26;
+    --ink:#F0EBE5; --ink-2:#A79E96; --ink-3:#786F68;
+    --span:#FF5C6B; --span-soft:#3A2023;
+    --point:#82AFF0; --point-soft:#1D2A3D;
+    --good:#4FC98D; --good-soft:#16301F; --bad:#FF806F; --bad-soft:#331B18;
+    --shadow:0 1px 0 rgba(0,0,0,.3), 0 10px 30px -20px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141210; --card:#1C1917; --grid:#262220; --grid-major:#332D29; --rule:#2F2A26;
+  --ink:#F0EBE5; --ink-2:#A79E96; --ink-3:#786F68;
+  --span:#FF5C6B; --span-soft:#3A2023;
+  --point:#82AFF0; --point-soft:#1D2A3D;
+  --good:#4FC98D; --good-soft:#16301F; --bad:#FF806F; --bad-soft:#331B18;
+  --shadow:0 1px 0 rgba(0,0,0,.3), 0 10px 30px -20px rgba(0,0,0,.9);
+}
+:root[data-theme="light"]{
+  --paper:#F7F5F2; --card:#FFFFFF; --grid:#E7E1DA; --grid-major:#D9D1C7; --rule:#DDD5CC;
+  --ink:#1B1613; --ink-2:#6C645C; --ink-3:#9B938B;
+  --span:#C81E32; --span-soft:#F5DCDF;
+  --point:#24549E; --point-soft:#DCE5F3;
+  --good:#1C7A4E; --good-soft:#DDEEE4; --bad:#AE2A1E; --bad-soft:#F6DEDA;
+  --shadow:0 1px 0 rgba(27,22,19,.04), 0 8px 28px -18px rgba(27,22,19,.35);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--f-body); font-size:17px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+:focus-visible{outline:2.5px solid var(--span); outline-offset:3px; border-radius:2px}
+
+/* ============================================================
+   HEADER — progress rendered as a dimension line
+   ============================================================ */
+.masthead{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter:blur(10px) saturate(1.3);
+  border-bottom:1px solid var(--rule);
+}
+.masthead__in{
+  max-width:var(--maxw); margin:0 auto; padding:.7rem clamp(1rem,4vw,2.5rem);
+  display:flex; align-items:center; gap:clamp(.75rem,2.5vw,2rem);
+}
+.brand{
+  font-family:var(--f-ui); font-size:.72rem; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink-2); white-space:nowrap;
+}
+.brand b{color:var(--span); font-weight:700}
+
+/* the dimension line */
+.dim{flex:1; min-width:80px; display:block; height:20px}
+.dim__ext{stroke:var(--ink-3); stroke-width:1}
+.dim__track{stroke:var(--rule); stroke-width:2}
+.dim__fill{stroke:var(--span); stroke-width:2.5; transition:all .45s cubic-bezier(.4,0,.2,1)}
+.dim__head{fill:var(--span)}
+
+.counter{
+  font-family:var(--f-ui); font-size:.78rem; color:var(--ink-2);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.counter b{color:var(--ink); font-weight:700}
+
+/* ============================================================
+   SHELL
+   ============================================================ */
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 clamp(1rem,4vw,2.5rem) 6rem}
+
+.hero{padding:clamp(3rem,9vw,6.5rem) 0 clamp(2rem,5vw,3.5rem)}
+.hero__eyebrow{
+  font-family:var(--f-ui); font-size:.72rem; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--ink-3); margin:0 0 1.4rem;
+}
+.hero__title{
+  font-family:var(--f-spec); font-weight:400;
+  font-size:clamp(2.6rem,8.5vw,5.5rem); line-height:.98; letter-spacing:-.02em;
+  margin:0; text-wrap:balance;
+}
+.hero__title em{font-style:italic; color:var(--span)}
+.hero__ko{
+  font-size:clamp(1.15rem,2.6vw,1.5rem); font-weight:600; line-height:1.5;
+  margin:1.6rem 0 0; max-width:34ch; text-wrap:balance;
+}
+.hero__lede{
+  margin:1rem 0 0; max-width:52ch; color:var(--ink-2); font-size:1.02rem;
+}
+.hero__meta{
+  margin-top:2.4rem; padding-top:1.1rem; border-top:1px solid var(--rule);
+  font-family:var(--f-ui); font-size:.74rem; letter-spacing:.06em;
+  color:var(--ink-3); display:flex; flex-wrap:wrap; gap:.4rem 1.6rem;
+}
+
+/* ============================================================
+   PLATE — one lesson step
+   ============================================================ */
+.plate{
+  border-top:1px solid var(--rule);
+  padding:clamp(2.5rem,6vw,4.5rem) 0 clamp(1rem,3vw,2rem);
+  scroll-margin-top:5rem;
+}
+.plate__head{display:flex; gap:1.1rem; align-items:baseline; margin-bottom:.6rem}
+.plate__ref{
+  font-family:var(--f-ui); font-size:.72rem; letter-spacing:.12em;
+  color:var(--span); border:1px solid currentColor; border-radius:2px;
+  padding:.12rem .45rem; flex:none; font-variant-numeric:tabular-nums;
+}
+.plate__kicker{
+  font-family:var(--f-ui); font-size:.72rem; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--ink-3);
+}
+.plate__title{
+  font-size:clamp(1.65rem,4.2vw,2.5rem); line-height:1.22; font-weight:700;
+  letter-spacing:-.015em; margin:0 0 .9rem; text-wrap:balance;
+}
+.plate__intro{margin:0 0 2rem; max-width:60ch; color:var(--ink-2)}
+.plate__intro strong{color:var(--ink); font-weight:600}
+
+/* drawing surface — graph paper */
+.sheet{
+  background:var(--card);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:22px 22px;
+  border:1px solid var(--rule); border-radius:3px;
+  padding:clamp(1rem,3vw,2rem); box-shadow:var(--shadow);
+  overflow-x:auto;
+}
+.sheet--plain{background-image:none}
+.sheet svg{display:block; width:100%; height:auto; min-width:340px}
+
+.grid2{display:grid; gap:1.5rem; grid-template-columns:1fr}
+@media (min-width:900px){ .grid2{grid-template-columns:1fr 1fr; gap:2rem} }
+
+/* ============================================================
+   SVG DRAWING PRIMITIVES
+   ============================================================ */
+.s-ink{fill:var(--ink)}
+.s-ink2{fill:var(--ink-2)}
+.s-line{stroke:var(--ink); stroke-width:2; fill:none; stroke-linecap:round}
+.s-thin{stroke:var(--ink-3); stroke-width:1.2; fill:none}
+.s-dash{stroke:var(--ink-3); stroke-width:1.4; fill:none; stroke-dasharray:5 5}
+.s-span{stroke:var(--span); stroke-width:3.5; fill:none; stroke-linecap:round}
+.s-point{stroke:var(--point); stroke-width:3; fill:none; stroke-linecap:round}
+.s-spanfill{fill:var(--span)}
+.s-pointfill{fill:var(--point)}
+.s-lbl{font-family:var(--f-ui); font-size:13px; fill:var(--ink-2); letter-spacing:.02em}
+.s-lbl-sm{font-family:var(--f-ui); font-size:11.5px; fill:var(--ink-3)}
+.s-spec{font-family:var(--f-spec); font-size:19px; fill:var(--ink)}
+.s-ko{font-family:var(--f-body); font-size:14px; font-weight:600; fill:var(--ink)}
+.s-num{font-family:var(--f-ui); font-size:12.5px; fill:var(--ink-2); font-variant-numeric:tabular-nums}
+
+/* draw-on animation */
+.draw{stroke-dasharray:1; stroke-dashoffset:1;}
+.is-in .draw{stroke-dashoffset:0; transition:stroke-dashoffset 1.05s cubic-bezier(.33,.9,.3,1)}
+.fade{opacity:0}
+.is-in .fade{opacity:1; transition:opacity .55s ease .5s}
+.is-in .fade--2{transition-delay:.85s}
+.is-in .fade--3{transition-delay:1.2s}
+
+/* ============================================================
+   VENN (plate 1 + 6)
+   ============================================================ */
+.venn-node{cursor:pointer}
+.venn-node rect{
+  fill:var(--card); stroke:var(--rule); stroke-width:1.5; rx:14;
+  transition:fill .2s, stroke .2s;
+}
+.venn-node text{font-family:var(--f-spec); font-size:17px; fill:var(--ink-2); transition:fill .2s}
+.venn-node:hover rect{stroke:var(--ink-3)}
+.venn-node.on rect{fill:var(--span-soft); stroke:var(--span); stroke-width:2}
+.venn-node.on text{fill:var(--span)}
+.venn-node.ok.on rect{fill:var(--good-soft); stroke:var(--good)}
+.venn-node.ok.on text{fill:var(--good)}
+
+.readout{
+  margin-top:1.25rem; border:1px solid var(--rule); border-left:3px solid var(--span);
+  border-radius:3px; background:var(--card); padding:1.1rem 1.3rem; min-height:7.5rem;
+}
+.readout__phrase{font-family:var(--f-spec); font-size:1.5rem; line-height:1.2; margin:0}
+.readout__phrase em{font-style:normal; color:var(--span)}
+.readout__row{
+  display:flex; gap:.6rem; align-items:baseline; margin-top:.7rem;
+  font-size:.95rem; flex-wrap:wrap;
+}
+.tag{
+  font-family:var(--f-ui); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase;
+  padding:.15rem .45rem; border-radius:2px; flex:none;
+}
+.tag--bad{background:var(--bad-soft); color:var(--bad)}
+.tag--good{background:var(--good-soft); color:var(--good)}
+.tag--span{background:var(--span-soft); color:var(--span)}
+.tag--point{background:var(--point-soft); color:var(--point)}
+.strike{text-decoration:line-through; color:var(--ink-3)}
+
+/* ============================================================
+   CONTROLS
+   ============================================================ */
+.switch{display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1.25rem}
+.switch button{
+  font-family:var(--f-spec); font-size:1.02rem;
+  background:var(--card); color:var(--ink-2);
+  border:1px solid var(--rule); border-radius:2px;
+  padding:.5rem .95rem; cursor:pointer; transition:all .18s;
+}
+.switch button:hover{border-color:var(--ink-3); color:var(--ink)}
+.switch button[aria-pressed="true"]{
+  background:var(--ink); color:var(--paper); border-color:var(--ink);
+}
+.switch button[aria-pressed="true"].is-x{background:var(--bad); border-color:var(--bad); color:#fff}
+
+.slider-row{display:flex; align-items:center; gap:1rem; margin-top:1.25rem; flex-wrap:wrap}
+.slider-row label{
+  font-family:var(--f-ui); font-size:.72rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-3); flex:none;
+}
+input[type=range]{
+  flex:1; min-width:200px; accent-color:var(--span); height:22px; cursor:pointer;
+}
+
+.verdict{
+  margin-top:1.1rem; border-radius:3px; padding:1rem 1.2rem;
+  border:1px solid var(--rule); background:var(--card);
+  border-left:3px solid var(--ink-3); transition:border-color .2s;
+}
+.verdict__label{
+  font-family:var(--f-spec); font-size:1.45rem; margin:0; line-height:1.2;
+}
+.verdict__note{margin:.45rem 0 0; color:var(--ink-2); font-size:.95rem}
+.verdict.v-span{border-left-color:var(--span)} .verdict.v-span .verdict__label{color:var(--span)}
+.verdict.v-point{border-left-color:var(--point)} .verdict.v-point .verdict__label{color:var(--point)}
+.verdict.v-bad{border-left-color:var(--bad)} .verdict.v-bad .verdict__label{color:var(--bad)}
+
+/* ============================================================
+   CARDS (plate 5)
+   ============================================================ */
+.cards{display:grid; gap:1.1rem; grid-template-columns:1fr}
+@media (min-width:720px){ .cards{grid-template-columns:1fr 1fr} }
+.card{
+  background:var(--card); border:1px solid var(--rule); border-radius:3px;
+  padding:1.2rem 1.3rem 1.4rem; box-shadow:var(--shadow);
+  display:flex; flex-direction:column; gap:.85rem;
+}
+.card__spec{font-family:var(--f-spec); font-size:1.32rem; line-height:1.3; margin:0}
+.card__spec em{font-style:normal; color:var(--span); font-weight:700}
+.card__spec .pt{color:var(--point); font-weight:700}
+.card svg{display:block; width:100%; height:auto}
+.card__note{margin:0; font-size:.94rem; color:var(--ink-2)}
+.card__note b{color:var(--ink); font-weight:600}
+
+.compare{
+  display:grid; gap:1.1rem; grid-template-columns:1fr; margin-top:1.1rem;
+}
+@media (min-width:720px){ .compare{grid-template-columns:1fr 1fr} }
+
+/* ============================================================
+   EXPANSION (plate 6)
+   ============================================================ */
+.problems{display:grid; gap:.9rem; margin:1.6rem 0 0; padding:0; list-style:none}
+.problems li{
+  display:flex; gap:.9rem; align-items:flex-start;
+  border:1px solid var(--rule); border-radius:3px; background:var(--card);
+  padding:.95rem 1.1rem;
+}
+.problems .n{
+  font-family:var(--f-ui); font-size:.72rem; color:var(--bad);
+  border:1px solid currentColor; border-radius:2px; padding:.08rem .38rem; flex:none;
+  margin-top:.25rem;
+}
+.problems p{margin:0; font-size:.97rem}
+.problems b{font-weight:700}
+
+/* ============================================================
+   FINALE (plate 7)
+   ============================================================ */
+.finale{display:grid; gap:1.1rem; grid-template-columns:1fr}
+@media (min-width:820px){ .finale{grid-template-columns:1fr 1fr} }
+.finale__panel{
+  background:var(--card); border:1px solid var(--rule); border-radius:3px;
+  padding:1.5rem; box-shadow:var(--shadow);
+}
+.finale__panel h3{
+  font-family:var(--f-spec); font-weight:400; font-size:clamp(1.5rem,3.6vw,2rem);
+  margin:0 0 1rem; line-height:1.2;
+}
+.finale__panel h3 em{font-style:normal; font-weight:700}
+.finale__panel.is-point h3 em{color:var(--point)}
+.finale__panel.is-span h3 em{color:var(--span)}
+.finale__panel p{margin:1rem 0 0; color:var(--ink-2); font-size:.96rem}
+.finale__panel p b{color:var(--ink)}
+
+/* ============================================================
+   QUIZ
+   ============================================================ */
+.quiz{display:flex; flex-direction:column; gap:1.1rem}
+.q{
+  background:var(--card); border:1px solid var(--rule); border-radius:3px;
+  padding:1.25rem 1.35rem; box-shadow:var(--shadow);
+}
+.q__no{
+  font-family:var(--f-ui); font-size:.7rem; letter-spacing:.14em;
+  color:var(--ink-3); text-transform:uppercase; margin:0 0 .5rem;
+}
+.q__ask{margin:0 0 1rem; font-size:1.03rem; font-weight:600; line-height:1.55}
+.q__ask code{
+  font-family:var(--f-spec); font-style:italic; font-size:1.08em;
+  background:none; color:var(--ink);
+}
+.q__opts{display:flex; flex-wrap:wrap; gap:.55rem}
+.q__opts button{
+  font-family:var(--f-spec); font-size:1.05rem;
+  background:var(--paper); color:var(--ink); border:1px solid var(--rule);
+  border-radius:2px; padding:.55rem 1rem; cursor:pointer; transition:all .18s;
+}
+.q__opts button:hover:not(:disabled){border-color:var(--ink); transform:translateY(-1px)}
+.q__opts button:disabled{cursor:default; opacity:.5}
+.q__opts button.right{
+  background:var(--good-soft); border-color:var(--good); color:var(--good);
+  font-weight:700; opacity:1;
+}
+.q__opts button.wrong{
+  background:var(--bad-soft); border-color:var(--bad); color:var(--bad);
+  text-decoration:line-through; opacity:1;
+}
+.q__why{
+  margin:1rem 0 0; padding-top:.9rem; border-top:1px dashed var(--rule);
+  font-size:.94rem; color:var(--ink-2); display:none;
+}
+.q.done .q__why{display:block}
+.q__why b{color:var(--ink)}
+
+.score{
+  margin-top:1.5rem; border:1px solid var(--rule); border-radius:3px;
+  background:var(--card); padding:1.3rem 1.4rem;
+  display:flex; align-items:center; justify-content:space-between;
+  gap:1rem; flex-wrap:wrap; box-shadow:var(--shadow);
+}
+.score__n{
+  font-family:var(--f-ui); font-size:2rem; font-weight:700;
+  font-variant-numeric:tabular-nums; color:var(--span); line-height:1;
+}
+.score__t{font-family:var(--f-ui); font-size:.74rem; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+.score__msg{margin:0; color:var(--ink-2); font-size:.95rem; flex:1; min-width:14rem}
+.btn-reset{
+  font-family:var(--f-ui); font-size:.74rem; letter-spacing:.1em; text-transform:uppercase;
+  background:none; border:1px solid var(--rule); color:var(--ink-2);
+  border-radius:2px; padding:.5rem .9rem; cursor:pointer; transition:all .18s;
+}
+.btn-reset:hover{border-color:var(--ink); color:var(--ink)}
+
+/* ============================================================
+   SUMMARY STRIP + FOOTER
+   ============================================================ */
+.recap{
+  margin-top:clamp(2.5rem,6vw,4rem); border:1px solid var(--rule); border-radius:3px;
+  background:var(--card); padding:clamp(1.4rem,4vw,2.2rem); box-shadow:var(--shadow);
+}
+.recap h2{
+  font-family:var(--f-ui); font-size:.74rem; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--ink-3); margin:0 0 1.3rem; font-weight:400;
+}
+.recap dl{display:grid; gap:.1rem 1.5rem; grid-template-columns:1fr; margin:0}
+@media (min-width:700px){ .recap dl{grid-template-columns:auto 1fr} }
+.recap dt{
+  font-family:var(--f-spec); font-size:1.12rem; padding:.6rem 0 0;
+  border-top:1px solid var(--rule);
+}
+.recap dt em{font-style:normal; color:var(--span); font-weight:700}
+.recap dd{margin:0; padding:.6rem 0 .9rem; color:var(--ink-2); font-size:.95rem}
+@media (min-width:700px){ .recap dd{border-top:1px solid var(--rule)} }
+
+.foot{
+  margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--rule);
+  font-family:var(--f-ui); font-size:.72rem; letter-spacing:.05em;
+  color:var(--ink-3); line-height:1.9;
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important; transition-duration:.01ms !important}
+  .draw{stroke-dashoffset:0}
+  .fade{opacity:1}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead__in">
+    <a class="brand" href="index.html" title="목록으로" style="text-decoration:none;color:inherit">☰ 전치사 <b>IN</b> · 범위</a>
+    <svg class="dim" viewBox="0 0 400 20" preserveAspectRatio="none" aria-hidden="true">
+      <line class="dim__ext" x1="3" y1="3" x2="3" y2="17"></line>
+      <line class="dim__ext" x1="397" y1="3" x2="397" y2="17"></line>
+      <line class="dim__track" x1="3" y1="10" x2="397" y2="10"></line>
+      <line class="dim__fill" id="dimFill" x1="3" y1="10" x2="52" y2="10"></line>
+      <polygon class="dim__head" id="dimHead" points="52,10 44,6.5 44,13.5"></polygon>
+    </svg>
+    <span class="counter"><b id="stepNow">1</b> / 8</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ══════════════ HERO ══════════════ -->
+  <section class="hero">
+    <p class="hero__eyebrow">Preposition Study Sheet — 01</p>
+    <h1 class="hero__title">in is a <em>span</em>,<br>not a box.</h1>
+    <p class="hero__ko">전치사 <em style="font-style:normal;color:var(--span)">in</em>을 “안에”로 외우면<br>딱 여기까지밖에 못 갑니다.</p>
+    <p class="hero__lede">
+      <em>in the school</em>은 “학교 안에”로 되는데, <em>in an hour</em>, <em>in time</em>,
+      <em>believe in</em>, <em>interested in</em>은 “안에”로 아무리 비틀어도 말이 안 됩니다.
+      그림 하나만 바꾸면 이 다섯 개가 전부 한 번에 설명됩니다. 그 그림이 <b>범위</b>입니다.
+    </p>
+    <p class="hero__meta">
+      <span>대상 · 중고등학생</span><span>8단계 · 약 15분</span><span>클릭 · 드래그로 직접 확인</span>
+    </p>
+  </section>
+
+  <!-- ══════════════ 01 ══════════════ -->
+  <section class="plate" id="p1" data-step="1">
+    <div class="plate__head">
+      <span class="plate__ref">01</span>
+      <span class="plate__kicker">The Mismatch</span>
+    </div>
+    <h2 class="plate__title">“안에”로 되는 건 사실 하나뿐이다</h2>
+    <p class="plate__intro">
+      아래 다섯 표현은 전부 <strong>in</strong>을 씁니다. 하나씩 눌러서
+      “안에”로 번역이 되는지 직접 확인해 보세요.
+    </p>
+
+    <div class="sheet js-obs">
+      <svg viewBox="0 0 620 330" role="img" aria-label="'안에'가 덮는 영역과 'in'이 덮는 영역을 비교한 벤 다이어그램">
+        <ellipse class="s-dash draw" pathLength="1" cx="200" cy="170" rx="152" ry="98"></ellipse>
+        <circle class="s-line draw" pathLength="1" cx="380" cy="170" r="142" style="stroke:var(--span)"></circle>
+        <text class="s-ko fade" x="70" y="42" style="font-size:20px">안에</text>
+        <text class="fade" x="500" y="46" style="font-family:var(--f-spec);font-size:32px;font-weight:700;fill:var(--span)">in</text>
+
+        <g class="venn-node ok fade" data-k="school" tabindex="0" role="button" aria-label="in the school">
+          <rect x="182" y="152" width="146" height="38"></rect>
+          <text x="255" y="176" text-anchor="middle">in the school</text>
+        </g>
+        <g class="venn-node fade fade--2" data-k="interested" tabindex="0" role="button" aria-label="interested in">
+          <rect x="306" y="62" width="152" height="38"></rect>
+          <text x="382" y="86" text-anchor="middle">interested in~</text>
+        </g>
+        <g class="venn-node fade fade--2" data-k="hour" tabindex="0" role="button" aria-label="in an hour">
+          <rect x="384" y="122" width="122" height="38"></rect>
+          <text x="445" y="146" text-anchor="middle">in an hour</text>
+        </g>
+        <g class="venn-node fade fade--3" data-k="time" tabindex="0" role="button" aria-label="in time">
+          <rect x="392" y="196" width="96" height="38"></rect>
+          <text x="440" y="220" text-anchor="middle">in time</text>
+        </g>
+        <g class="venn-node fade fade--3" data-k="believe" tabindex="0" role="button" aria-label="believe in">
+          <rect x="298" y="256" width="136" height="38"></rect>
+          <text x="366" y="280" text-anchor="middle">believe in~</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="readout" id="ro1">
+      <p class="readout__phrase">위 다이어그램에서 표현 하나를 눌러 보세요.</p>
+      <p class="readout__row" style="color:var(--ink-2)">
+        회색 타원이 우리가 아는 “안에”, 빨간 원이 영어의 <em style="font-style:normal;font-family:var(--f-spec)">in</em>입니다.
+        겹치는 부분이 얼마나 좁은지 보이시나요?
+      </p>
+    </div>
+  </section>
+
+  <!-- ══════════════ 02 ══════════════ -->
+  <section class="plate" id="p2" data-step="2">
+    <div class="plate__head">
+      <span class="plate__ref">02</span>
+      <span class="plate__kicker">The Picture</span>
+    </div>
+    <h2 class="plate__title">in의 진짜 그림은 이것 하나</h2>
+    <p class="plate__intro">
+      단어를 바꾸는 게 아니라 <strong>그림</strong>을 바꿉니다.
+      점 하나에서 점 하나까지 — <strong>양쪽 끝이 있는 구간 전체</strong>. 이게 in입니다.
+    </p>
+
+    <div class="sheet js-obs" style="padding-top:2.5rem;padding-bottom:2.5rem">
+      <svg viewBox="0 0 620 210" role="img" aria-label="in을 나타내는 양방향 화살표 — 범위">
+        <line class="s-thin fade" x1="90" y1="52" x2="90" y2="118"></line>
+        <line class="s-thin fade" x1="530" y1="52" x2="530" y2="118"></line>
+        <line class="s-span draw" pathLength="1" x1="102" y1="85" x2="518" y2="85"></line>
+        <polygon class="s-spanfill fade" points="90,85 108,76 108,94"></polygon>
+        <polygon class="s-spanfill fade" points="530,85 512,76 512,94"></polygon>
+        <text class="fade fade--2" x="310" y="46" text-anchor="middle"
+              style="font-family:var(--f-spec);font-size:34px;font-weight:700;fill:var(--span)">in</text>
+        <text class="s-ko fade fade--2" x="310" y="128" text-anchor="middle" style="font-size:17px">범위 · 그 구간 전체</text>
+        <text class="s-lbl-sm fade fade--3" x="90" y="140" text-anchor="middle">start</text>
+        <text class="s-lbl-sm fade fade--3" x="530" y="140" text-anchor="middle">end</text>
+
+        <g class="fade fade--3">
+          <line class="s-thin" x1="90" y1="168" x2="180" y2="168" style="stroke:var(--ink-3);stroke-width:8;opacity:.35"></line>
+          <text class="s-lbl-sm" x="196" y="172">← “안에”가 덮는 건 여기까지</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ══════════════ 03 ══════════════ -->
+  <section class="plate" id="p3" data-step="3">
+    <div class="plate__head">
+      <span class="plate__ref">03</span>
+      <span class="plate__kicker">Time · Span</span>
+    </div>
+    <h2 class="plate__title">in an hour = “한 시간 이내”가 아니다</h2>
+    <p class="plate__intro">
+      6시에 말했다면 <strong>in an hour</strong>는 6시부터 7시까지 <strong>구간 전체</strong>를 가리키고,
+      결국 도착하는 곳은 <strong>7시</strong>입니다. 즉 “한 시간 <strong>후에</strong>”. 버튼을 눌러 비교해 보세요.
+    </p>
+
+    <div class="switch" role="group" aria-label="시간 표현 비교">
+      <button type="button" data-tl="in" aria-pressed="true">in an hour</button>
+      <button type="button" data-tl="after" class="is-x" aria-pressed="false">after an hour</button>
+      <button type="button" data-tl="within" aria-pressed="false">within an hour</button>
+    </div>
+
+    <div class="sheet">
+      <svg viewBox="0 0 620 250" role="img" aria-label="6시에서 7시까지의 타임라인">
+        <!-- baseline -->
+        <line class="s-thin" x1="60" y1="150" x2="580" y2="150" style="stroke:var(--rule);stroke-width:2"></line>
+        <line class="s-thin" x1="100" y1="128" x2="100" y2="172"></line>
+        <line class="s-thin" x1="420" y1="128" x2="420" y2="172"></line>
+        <text class="s-num" x="100" y="192" text-anchor="middle">6:00</text>
+        <text class="s-num" x="420" y="192" text-anchor="middle">7:00</text>
+        <text class="s-lbl-sm" x="100" y="210" text-anchor="middle">말한 시각</text>
+
+        <!-- WITHIN: shaded region -->
+        <rect id="tlWithin" x="100" y="118" width="320" height="64" rx="3"
+              fill="var(--span-soft)" opacity="0"></rect>
+
+        <!-- IN: span arrow -->
+        <g id="tlIn">
+          <path class="s-dash" d="M100 108 Q260 62 420 108" style="stroke:var(--ink-3)"></path>
+          <line class="s-span" x1="112" y1="150" x2="408" y2="150"></line>
+          <polygon class="s-spanfill" points="100,150 118,141 118,159"></polygon>
+          <polygon class="s-spanfill" points="420,150 402,141 402,159"></polygon>
+        </g>
+
+        <!-- AFTER: point + ray -->
+        <g id="tlAfter" opacity="0">
+          <circle class="s-pointfill" cx="420" cy="150" r="8"></circle>
+          <line class="s-point" x1="432" y1="150" x2="556" y2="150"></line>
+          <polygon class="s-pointfill" points="568,150 550,141 550,159"></polygon>
+        </g>
+
+        <!-- verdict text inside sheet -->
+        <text id="tlHead" x="310" y="42" text-anchor="middle"
+              style="font-family:var(--f-spec);font-size:26px;font-weight:700;fill:var(--span)">in an hour</text>
+        <text id="tlKo" class="s-ko" x="310" y="232" text-anchor="middle" style="font-size:16px">= 한 시간 후에 (7시에)</text>
+      </svg>
+    </div>
+
+    <div class="verdict v-span" id="tlNote">
+      <p class="verdict__label">in an hour → 한 시간 후에</p>
+      <p class="verdict__note">
+        6시↔7시 <b>구간 전체</b>를 말하므로 도착점은 7시. 우리말 “한 시간 이내”로 착각하기 쉬운데,
+        그건 <b>within an hour</b>입니다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══════════════ 04 ══════════════ -->
+  <section class="plate" id="p4" data-step="4">
+    <div class="plate__head">
+      <span class="plate__ref">04</span>
+      <span class="plate__kicker">in time vs on time</span>
+    </div>
+    <h2 class="plate__title">범위 안에 들어오면 in, 그 점 위에 서면 on</h2>
+    <p class="plate__intro">
+      약속 시각은 <strong>3:00</strong>. 손잡이를 움직여 도착 시각을 바꿔 보세요.
+      <strong>in time</strong>은 여유 구간 안 어디든 되고, <strong>on time</strong>은 딱 그 점이어야 합니다.
+    </p>
+
+    <div class="sheet">
+      <svg viewBox="0 0 620 210" role="img" aria-label="도착 시각에 따라 in time / on time / late 를 판정하는 타임라인">
+        <rect x="80" y="86" width="380" height="34" rx="3" fill="var(--span-soft)"></rect>
+        <line class="s-thin" x1="60" y1="103" x2="580" y2="103" style="stroke:var(--rule);stroke-width:2"></line>
+
+        <line class="s-span" x1="92" y1="103" x2="448" y2="103" stroke-width="3"></line>
+        <polygon class="s-spanfill" points="80,103 98,94 98,112"></polygon>
+        <polygon class="s-spanfill" points="460,103 442,94 442,112"></polygon>
+        <text class="s-lbl-sm" x="270" y="78" text-anchor="middle">여유 있는 구간 · in time</text>
+
+        <!-- deadline tick -->
+        <line x1="460" y1="62" x2="460" y2="144" stroke="var(--ink)" stroke-width="2.5"></line>
+        <text class="s-num" x="460" y="164" text-anchor="middle">3:00</text>
+        <text class="s-lbl-sm" x="460" y="182" text-anchor="middle">약속 시각 · on time</text>
+        <text class="s-lbl-sm" x="540" y="164" text-anchor="middle">지각</text>
+
+        <!-- marker -->
+        <g id="mk" style="transition:transform .08s linear">
+          <line x1="0" y1="46" x2="0" y2="103" stroke="var(--ink)" stroke-width="1.4" stroke-dasharray="3 3"></line>
+          <circle cx="0" cy="103" r="10" fill="var(--card)" stroke="var(--ink)" stroke-width="2.5"></circle>
+          <circle cx="0" cy="103" r="4" fill="var(--ink)"></circle>
+          <text id="mkT" class="s-num" x="0" y="36" text-anchor="middle" style="font-weight:700;fill:var(--ink)">2:20</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="slider-row">
+      <label for="arrive">도착 시각</label>
+      <input type="range" id="arrive" min="80" max="560" value="240" step="1"
+             aria-describedby="tvNote">
+    </div>
+
+    <div class="verdict v-span" id="tv">
+      <p class="verdict__label" id="tvLabel">in time</p>
+      <p class="verdict__note" id="tvNote">여유 구간 안에 들어왔습니다. 늦지 않게, 시간 안에 도착.</p>
+    </div>
+
+    <div class="compare">
+      <div class="card">
+        <p class="card__spec">You need to give it back <em>in time</em>.</p>
+        <p class="card__note">대출 기간이 <b>3주</b>라면, 그 3주라는 <b>구간 안</b> 어디에 반납하든 in time. 날짜를 콕 집는 게 아닙니다.</p>
+      </div>
+      <div class="card">
+        <p class="card__spec">The appointed time is three.<br>Please come <span class="pt">on time</span>.</p>
+        <p class="card__note">약속한 <b>3시 정각</b>이라는 <b>한 점</b> 위에 서야 합니다. 2시 40분에 와도 on time은 아닙니다.</p>
+      </div>
+    </div>
+
+    <div class="verdict" style="border-left-color:var(--span)">
+      <p class="verdict__label" style="font-size:1.2rem">just in time</p>
+      <p class="verdict__note">
+        구간의 <b>끝에 아슬아슬하게</b> 걸쳐 들어온 경우. 생산 라인에서 필요한 부품이 필요한 순간에 딱 맞춰
+        도착하도록 짠 방식을 <b>Just-In-Time(JIT) 시스템</b>이라고 부르는 이유가 여기 있습니다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══════════════ 05 ══════════════ -->
+  <section class="plate" id="p5" data-step="5">
+    <div class="plate__head">
+      <span class="plate__ref">05</span>
+      <span class="plate__kicker">Space &amp; Object</span>
+    </div>
+    <h2 class="plate__title">시간이 아니어도 똑같이 “범위”다</h2>
+    <p class="plate__intro">
+      같은 화살표를 책 위에, 관심 위에, 의자 위에 그대로 얹어 봅니다. 그림이 하나면 설명도 하나입니다.
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <p class="card__spec">I believe <em>in</em> this book.</p>
+        <svg viewBox="0 0 260 118" aria-hidden="true">
+          <line class="s-span" x1="42" y1="22" x2="218" y2="22" stroke-width="3"></line>
+          <polygon class="s-spanfill" points="30,22 48,13 48,31"></polygon>
+          <polygon class="s-spanfill" points="230,22 212,13 212,31"></polygon>
+          <path class="s-line" d="M130 52 L130 104"></path>
+          <path class="s-line" d="M130 52 C104 42 76 44 56 52 L56 104 C76 96 104 94 130 104"></path>
+          <path class="s-line" d="M130 52 C156 42 184 44 204 52 L204 104 C184 96 156 94 130 104"></path>
+          <line class="s-thin" x1="70" y1="64" x2="116" y2="61"></line>
+          <line class="s-thin" x1="70" y1="76" x2="116" y2="73"></line>
+          <line class="s-thin" x1="144" y1="61" x2="190" y2="64"></line>
+          <line class="s-thin" x1="144" y1="73" x2="190" y2="76"></line>
+        </svg>
+        <p class="card__note">한 문장만 믿는 게 아니라 <b>책 전체를 통째로</b> 믿는다는 뜻. 여기에 God을 넣으면 그대로 종교적 신념이 됩니다.</p>
+      </div>
+
+      <div class="card">
+        <p class="card__spec">He's interested <em>in</em> honey.</p>
+        <svg viewBox="0 0 260 118" aria-hidden="true">
+          <line class="s-span" x1="42" y1="22" x2="218" y2="22" stroke-width="3"></line>
+          <polygon class="s-spanfill" points="30,22 48,13 48,31"></polygon>
+          <polygon class="s-spanfill" points="230,22 212,13 212,31"></polygon>
+          <path class="s-line" d="M96 56 L96 48 L164 48 L164 56"></path>
+          <path class="s-line" d="M92 56 C74 62 74 100 92 106 L168 106 C186 100 186 62 168 56 Z"></path>
+          <text x="130" y="90" text-anchor="middle" style="font-family:var(--f-ui);font-size:14px;fill:var(--ink-2)">HONEY</text>
+          <ellipse cx="196" cy="42" rx="7" ry="5" fill="var(--ink)"></ellipse>
+          <path class="s-thin" d="M192 36 Q196 28 202 34"></path>
+          <path class="s-dash" d="M186 46 Q176 52 170 50" style="stroke-dasharray:3 3"></path>
+        </svg>
+        <p class="card__note">관심이 <b>꿀이라는 대상 전체에 걸쳐</b> 뻗어 있는 상태. interest라는 단어 자체가 이 범위를 품고 있습니다.</p>
+      </div>
+
+      <div class="card">
+        <p class="card__spec">She's <em>in</em> the school.</p>
+        <svg viewBox="0 0 260 118" aria-hidden="true">
+          <line class="s-span" x1="42" y1="22" x2="218" y2="22" stroke-width="3"></line>
+          <polygon class="s-spanfill" points="30,22 48,13 48,31"></polygon>
+          <polygon class="s-spanfill" points="230,22 212,13 212,31"></polygon>
+          <rect class="s-line" x="62" y="58" width="86" height="48"></rect>
+          <path class="s-line" d="M56 58 L105 40 L154 58"></path>
+          <line class="s-line" x1="105" y1="40" x2="105" y2="26"></line>
+          <path class="s-line" d="M105 26 L128 31 L105 36"></path>
+          <rect class="s-thin" x="74" y="70" width="16" height="14"></rect>
+          <rect class="s-thin" x="120" y="70" width="16" height="14"></rect>
+          <circle class="s-line" cx="188" cy="70" r="7"></circle>
+          <path class="s-line" d="M188 77 L188 92 M188 92 L180 106 M188 92 L197 106 M178 82 L198 82"></path>
+        </svg>
+        <p class="card__note">“학교 안에”로 읽어도 통하지만, 원래 뜻은 <b>그녀가 존재하는 공간의 범위</b>. 이 한 칸만 “안에”와 겹친 겁니다.</p>
+      </div>
+
+      <div class="card">
+        <p class="card__spec"><em>in</em> ↑ / <span class="pt">out</span> ↓</p>
+        <svg viewBox="0 0 260 118" aria-hidden="true">
+          <line class="s-span" x1="42" y1="24" x2="218" y2="24" stroke-width="3"></line>
+          <polygon class="s-spanfill" points="30,24 48,15 48,33"></polygon>
+          <polygon class="s-spanfill" points="230,24 212,15 212,33"></polygon>
+          <rect class="s-line" x="102" y="38" width="56" height="72"></rect>
+          <line class="s-thin" x1="102" y1="58" x2="158" y2="58"></line>
+          <line class="s-thin" x1="102" y1="78" x2="158" y2="78"></line>
+          <line class="s-thin" x1="102" y1="98" x2="158" y2="98"></line>
+          <line class="s-thin" x1="130" y1="38" x2="130" y2="110"></line>
+          <path fill="var(--span)" d="M62 106 L62 74 L52 74 L70 54 L88 74 L78 74 L78 106 Z"></path>
+          <path fill="var(--point)" d="M182 54 L182 86 L172 86 L190 106 L208 86 L198 86 L198 54 Z"></path>
+        </svg>
+        <p class="card__note">out은 그냥 “밖”이 아니라 <b>in이 만든 그 범위의 바깥</b>. 짝으로 외우면 둘 다 흔들리지 않습니다.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:1.1rem;margin:2.2rem 0 .8rem">같은 의자, 다른 전치사</h3>
+    <div class="compare">
+      <div class="card">
+        <p class="card__spec">He sits <span class="pt">on</span> the chair.</p>
+        <svg viewBox="0 0 260 130" aria-hidden="true">
+          <circle class="s-pointfill" cx="130" cy="42" r="7"></circle>
+          <line class="s-point" x1="130" y1="49" x2="130" y2="62"></line>
+          <polygon class="s-pointfill" points="130,72 122,58 138,58"></polygon>
+          <line class="s-line" x1="78" y1="78" x2="182" y2="78" stroke-width="4"></line>
+          <line class="s-line" x1="90" y1="78" x2="82" y2="120"></line>
+          <line class="s-line" x1="170" y1="78" x2="178" y2="120"></line>
+          <line class="s-line" x1="112" y1="78" x2="108" y2="120"></line>
+          <line class="s-line" x1="148" y1="78" x2="152" y2="120"></line>
+          <line class="s-thin" x1="92" y1="102" x2="168" y2="102"></line>
+        </svg>
+        <p class="card__note">등받이 없는 스툴에 <b>걸터앉은 한 점</b>. 접촉면 하나로 끝나므로 on.</p>
+      </div>
+      <div class="card">
+        <p class="card__spec">The boss sits <em>in</em> the chair.</p>
+        <svg viewBox="0 0 260 130" aria-hidden="true">
+          <line class="s-span" x1="86" y1="26" x2="174" y2="26" stroke-width="3"></line>
+          <polygon class="s-spanfill" points="76,26 92,18 92,34"></polygon>
+          <polygon class="s-spanfill" points="184,26 168,18 168,34"></polygon>
+          <path class="s-line" d="M84 96 L84 48 C84 42 90 38 96 38 L164 38 C170 38 176 42 176 48 L176 96"></path>
+          <path class="s-line" d="M68 96 L68 66 C68 60 74 58 80 58 L84 58"></path>
+          <path class="s-line" d="M192 96 L192 66 C192 60 186 58 180 58 L176 58"></path>
+          <line class="s-line" x1="64" y1="96" x2="196" y2="96" stroke-width="4"></line>
+          <line class="s-line" x1="78" y1="96" x2="76" y2="118"></line>
+          <line class="s-line" x1="182" y1="96" x2="184" y2="118"></line>
+          <line class="s-thin" x1="98" y1="54" x2="162" y2="54"></line>
+          <line class="s-thin" x1="98" y1="70" x2="162" y2="70"></line>
+        </svg>
+        <p class="card__note">팔걸이·등받이까지 <b>의자라는 공간을 통째로 차지</b>. 범위를 채웠으니 in.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 06 ══════════════ -->
+  <section class="plate" id="p6" data-step="6">
+    <div class="plate__head">
+      <span class="plate__ref">06</span>
+      <span class="plate__kicker">Why the picture wins</span>
+    </div>
+    <h2 class="plate__title">한국어 단어로 외우면 왜 막히는가</h2>
+    <p class="plate__intro">
+      뜻을 우리말 단어에 하나씩 붙여 외우는 방식에는 치명적인 문제가 둘 있습니다.
+    </p>
+
+    <ul class="problems">
+      <li><span class="n">문제 1</span><p><b>확장이 안 된다.</b> “안에”에서 <em>in an hour</em>나 <em>believe in</em>으로 뻗어 나갈 길이 없습니다. 연결이 없으니 뜻마다 따로 외워야 하고, 따로 외운 건 잘 안 남습니다.</p></li>
+      <li><span class="n">문제 2</span><p><b>단어를 늘려도 못 덮는다.</b> “안에 / 이내에 / 후에 / ~에 대해”… 아무리 한국어를 추가해도 in이 실제로 쓰이는 자리를 전부 덮지 못합니다. 늘 새는 부분이 남습니다.</p></li>
+    </ul>
+
+    <div class="grid2" style="margin-top:2rem">
+      <div>
+        <p class="plate__kicker" style="margin-bottom:.6rem">“안에”로 접근했을 때</p>
+        <div class="sheet js-obs" style="padding:1.2rem">
+          <svg viewBox="0 0 300 260" role="img" aria-label="'안에'에서는 다른 뜻으로 뻗어나가지 못하고 전부 막힌다">
+            <circle cx="150" cy="130" r="42" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-dasharray="5 5"></circle>
+            <text class="s-ko" x="150" y="136" text-anchor="middle" style="font-size:15px;fill:var(--ink-2)">안에</text>
+            <g class="s-thin" style="stroke:var(--ink-3);opacity:.5">
+              <line x1="150" y1="88" x2="150" y2="52"></line>
+              <line x1="188" y1="112" x2="238" y2="86"></line>
+              <line x1="192" y1="146" x2="246" y2="164"></line>
+              <line x1="150" y1="172" x2="150" y2="212"></line>
+              <line x1="110" y1="150" x2="58" y2="176"></line>
+            </g>
+            <g class="fade" style="font-family:var(--f-ui);font-size:19px;font-weight:700;fill:var(--bad)">
+              <text x="150" y="76" text-anchor="middle">✕</text>
+              <text x="216" y="102" text-anchor="middle">✕</text>
+              <text x="224" y="164" text-anchor="middle">✕</text>
+              <text x="150" y="200" text-anchor="middle">✕</text>
+              <text x="82" y="176" text-anchor="middle">✕</text>
+            </g>
+            <g class="s-lbl-sm fade fade--2">
+              <text x="150" y="34" text-anchor="middle">in an hour</text>
+              <text x="256" y="76" text-anchor="middle">in time</text>
+              <text x="256" y="188" text-anchor="middle">believe in</text>
+              <text x="150" y="232" text-anchor="middle">interested in</text>
+              <text x="42" y="196" text-anchor="middle">in the chair</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div>
+        <p class="plate__kicker" style="margin-bottom:.6rem">“범위 ↔”로 접근했을 때</p>
+        <div class="sheet js-obs" style="padding:1.2rem">
+          <svg viewBox="0 0 300 260" role="img" aria-label="'범위'에서는 모든 뜻으로 자연스럽게 뻗어나간다">
+            <circle cx="150" cy="130" r="46" fill="var(--span-soft)" stroke="var(--span)" stroke-width="2"></circle>
+            <line class="s-span" x1="126" y1="130" x2="174" y2="130" stroke-width="3"></line>
+            <polygon class="s-spanfill" points="118,130 132,124 132,136"></polygon>
+            <polygon class="s-spanfill" points="182,130 168,124 168,136"></polygon>
+            <g class="draw" pathLength="1" style="stroke:var(--span);stroke-width:1.8;fill:none;opacity:.75">
+              <line x1="150" y1="84" x2="150" y2="52"></line>
+              <line x1="188" y1="108" x2="238" y2="84"></line>
+              <line x1="192" y1="150" x2="248" y2="168"></line>
+              <line x1="150" y1="176" x2="150" y2="212"></line>
+              <line x1="108" y1="152" x2="56" y2="178"></line>
+            </g>
+            <g class="s-spanfill fade">
+              <polygon points="150,46 145,58 155,58"></polygon>
+              <polygon points="245,80 233,80 238,90"></polygon>
+              <polygon points="254,171 243,164 242,175"></polygon>
+              <polygon points="150,218 145,206 155,206"></polygon>
+              <polygon points="50,181 62,174 62,184"></polygon>
+            </g>
+            <g class="s-lbl-sm fade fade--2" style="fill:var(--span)">
+              <text x="150" y="34" text-anchor="middle">in an hour</text>
+              <text x="258" y="72" text-anchor="middle">in time</text>
+              <text x="256" y="192" text-anchor="middle">believe in</text>
+              <text x="150" y="238" text-anchor="middle">interested in</text>
+              <text x="40" y="198" text-anchor="middle">in the chair</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict v-span" style="margin-top:1.5rem">
+      <p class="verdict__label" style="font-size:1.15rem">그림 하나 = 확장 가능한 하나의 규칙</p>
+      <p class="verdict__note">
+        우리말 단어를 버리고 <b>범위라는 그림</b>으로 받아들이면, 새 표현을 만나도 한국어로 번역하지 않고
+        바로 이해할 수 있습니다. 외울 항목이 다섯 개에서 한 개로 줄어듭니다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══════════════ 07 ══════════════ -->
+  <section class="plate" id="p7" data-step="7">
+    <div class="plate__head">
+      <span class="plate__ref">07</span>
+      <span class="plate__kicker">The payoff</span>
+    </div>
+    <h2 class="plate__title">in 하나로 문장의 무게가 달라진다</h2>
+    <p class="plate__intro">
+      매일 거짓말하던 친구가 오늘 한 말을 믿어줄 때와, 그 친구라는 사람 자체를 믿는다고 말할 때 —
+      영어는 <strong>in</strong> 하나로 구분합니다.
+    </p>
+
+    <div class="finale">
+      <div class="finale__panel is-point">
+        <h3>I believe <em>you</em>.</h3>
+        <svg viewBox="0 0 300 110" aria-hidden="true">
+          <line class="s-thin" x1="30" y1="70" x2="270" y2="70" style="stroke:var(--rule);stroke-width:2"></line>
+          <circle class="s-pointfill" cx="150" cy="70" r="10"></circle>
+          <line class="s-point" x1="150" y1="60" x2="150" y2="30" stroke-width="1.5" stroke-dasharray="3 3"></line>
+          <text class="s-lbl-sm" x="150" y="22" text-anchor="middle" style="fill:var(--point)">그 말 한 마디</text>
+        </svg>
+        <p><b>지금 그 말이 사실이라고</b> 믿는다. 한 점만 찍는 겁니다. 사람 자체에 대한 신뢰까지는 아닙니다.</p>
+      </div>
+
+      <div class="finale__panel is-span">
+        <h3>I believe <em>in</em> you.</h3>
+        <svg viewBox="0 0 300 110" aria-hidden="true">
+          <rect x="52" y="56" width="196" height="28" rx="3" fill="var(--span-soft)"></rect>
+          <line class="s-thin" x1="30" y1="70" x2="270" y2="70" style="stroke:var(--rule);stroke-width:2"></line>
+          <line class="s-span" x1="64" y1="70" x2="236" y2="70" stroke-width="3.5"></line>
+          <polygon class="s-spanfill" points="52,70 70,61 70,79"></polygon>
+          <polygon class="s-spanfill" points="248,70 230,61 230,79"></polygon>
+          <text class="s-lbl-sm" x="150" y="34" text-anchor="middle" style="fill:var(--span)">그 사람 전체</text>
+        </svg>
+        <p><b>너라는 사람 전체를</b> 믿는다. 과거도 앞으로도 포함한 범위 전체. 훨씬 무거운 말입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 08 QUIZ ══════════════ -->
+  <section class="plate" id="p8" data-step="8">
+    <div class="plate__head">
+      <span class="plate__ref">08</span>
+      <span class="plate__kicker">Check yourself</span>
+    </div>
+    <h2 class="plate__title">확인 문제 6개</h2>
+    <p class="plate__intro">
+      번역하지 말고 <strong>그림을 떠올려서</strong> 골라 보세요. 고르면 바로 해설이 나옵니다.
+    </p>
+
+    <div class="quiz" id="quiz"></div>
+
+    <div class="score">
+      <div>
+        <div class="score__n"><span id="scoreN">0</span> / 6</div>
+        <div class="score__t">Score</div>
+      </div>
+      <p class="score__msg" id="scoreMsg">문제를 풀면 여기에 결과가 나옵니다.</p>
+      <button type="button" class="btn-reset" id="reset">다시 풀기</button>
+    </div>
+  </section>
+
+  <!-- ══════════════ RECAP ══════════════ -->
+  <section class="recap">
+    <h2>One-page recap</h2>
+    <dl>
+      <dt><em>in</em> = ↔</dt>
+      <dd>양쪽 끝이 있는 <b>구간 전체</b>. “안에”는 이 그림의 아주 작은 일부일 뿐입니다.</dd>
+      <dt><em>in</em> an hour</dt>
+      <dd>6시↔7시 구간 전체 → <b>한 시간 후에</b>. “이내”는 within, <b>after는 점만</b> 받으므로 after an hour는 성립하지 않습니다.</dd>
+      <dt><em>in</em> time / on time</dt>
+      <dd>in time은 여유 구간 안 어디든, on time은 약속한 <b>그 점 위에</b> 정확히.</dd>
+      <dt>believe <em>in</em> / interested <em>in</em></dt>
+      <dd>대상 <b>전체에 걸쳐</b> 믿음이나 관심이 뻗어 있는 상태.</dd>
+      <dt><em>in</em> the chair</dt>
+      <dd>의자라는 공간을 <b>통째로 차지</b>. 걸터앉아 한 점만 닿으면 on the chair.</dd>
+      <dt>왜 그림인가</dt>
+      <dd>한국어 단어 대응은 <b>확장되지 않고, 다 덮지도 못합니다.</b> 그림 하나는 새 표현까지 따라옵니다.</dd>
+    </dl>
+  </section>
+
+  <p class="foot">
+    학습용 재구성 자료 · 개념 도해는 전부 새로 그린 SVG입니다.<br>
+    원본 강의 영상의 설명 순서를 참고해 중고등학생용으로 다시 구성했습니다.
+  </p>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- draw-on when a sheet scrolls into view ---------- */
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add("is-in"); obs.unobserve(e.target); }
+    });
+  }, {threshold:0.25});
+  document.querySelectorAll(".js-obs").forEach(function(el){
+    if(reduce){ el.classList.add("is-in"); } else { obs.observe(el); }
+  });
+
+  /* ---------- header dimension-line progress ---------- */
+  var fill = document.getElementById("dimFill");
+  var head = document.getElementById("dimHead");
+  var nowEl = document.getElementById("stepNow");
+  var plates = Array.prototype.slice.call(document.querySelectorAll(".plate"));
+  var TOTAL = 8, X0 = 3, X1 = 397;
+
+  function setStep(n){
+    nowEl.textContent = n;
+    var x = X0 + (X1 - X0) * (n / TOTAL);
+    fill.setAttribute("x2", x);
+    head.setAttribute("points", x + ",10 " + (x-8) + ",6.5 " + (x-8) + ",13.5");
+  }
+  var stepObs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting) setStep(parseInt(e.target.dataset.step, 10));
+    });
+  }, {rootMargin:"-45% 0px -50% 0px"});
+  plates.forEach(function(p){ stepObs.observe(p); });
+  setStep(1);
+
+  /* ---------- 01 Venn readout ---------- */
+  var VENN = {
+    school: {
+      ok:true, phrase:"in the <em>school</em>", lit:"학교 안에",
+      tag:"딱 하나 맞는 경우",
+      body:"“안에”로 번역해도 통합니다. 하지만 원래 뜻은 <b>그녀가 있는 공간의 범위</b>예요. 우연히 겹친 한 칸일 뿐입니다."
+    },
+    interested: {
+      ok:false, phrase:"interested <em>in</em>~", lit:"관심 안에?",
+      tag:"안 됨",
+      body:"“안에”로는 문장이 안 만들어집니다. <b>관심이 그 대상 전체에 걸쳐 뻗어 있다</b>로 읽어야 자연스럽습니다."
+    },
+    hour: {
+      ok:false, phrase:"<em>in</em> an hour", lit:"한 시간 안에?",
+      tag:"안 됨",
+      body:"“한 시간 이내”가 아니라 <b>한 시간 후에</b>입니다. 6시↔7시 <b>구간 전체</b>를 말하니까 도착점이 7시가 되는 거죠."
+    },
+    time: {
+      ok:false, phrase:"<em>in</em> time", lit:"시간 안에?",
+      tag:"안 됨",
+      body:"“시간 안에”라고 하면 on time과 구분이 안 됩니다. in time은 <b>여유 있는 구간 안</b>, on time은 <b>정각이라는 점</b>."
+    },
+    believe: {
+      ok:false, phrase:"believe <em>in</em>~", lit:"안을 믿는다?",
+      tag:"안 됨",
+      body:"안쪽을 믿는 게 아니라 <b>그 대상 전체를 통째로</b> 믿는 겁니다. 그래서 종교적 신념까지 이 표현을 씁니다."
+    }
+  };
+  var ro = document.getElementById("ro1");
+  var nodes = document.querySelectorAll(".venn-node");
+
+  function pick(k){
+    nodes.forEach(function(n){ n.classList.toggle("on", n.dataset.k === k); });
+    var d = VENN[k];
+    ro.style.borderLeftColor = d.ok ? "var(--good)" : "var(--span)";
+    ro.innerHTML =
+      '<p class="readout__phrase">' + d.phrase + '</p>' +
+      '<p class="readout__row">' +
+        '<span class="tag ' + (d.ok ? "tag--good" : "tag--bad") + '">' + d.tag + '</span>' +
+        '<span class="' + (d.ok ? "" : "strike") + '">“' + d.lit + '”</span>' +
+      '</p>' +
+      '<p class="readout__row" style="display:block;color:var(--ink-2)">' + d.body + '</p>';
+  }
+  nodes.forEach(function(n){
+    n.addEventListener("click", function(){ pick(n.dataset.k); });
+    n.addEventListener("keydown", function(ev){
+      if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); pick(n.dataset.k); }
+    });
+  });
+
+  /* ---------- 03 timeline switch ---------- */
+  var TL = {
+    "in": {
+      head:"in an hour", headFill:"var(--span)", ko:"= 한 시간 후에 (7시에)",
+      cls:"verdict v-span", label:"in an hour → 한 시간 후에",
+      note:"6시↔7시 <b>구간 전체</b>를 말하므로 도착점은 7시. 우리말 “한 시간 이내”로 착각하기 쉬운데, 그건 <b>within an hour</b>입니다."
+    },
+    "after": {
+      head:"after an hour", headFill:"var(--bad)", ko:"✕ 이 표현은 쓰지 않는다",
+      cls:"verdict v-bad", label:"after an hour → 성립하지 않음",
+      note:"after는 뒤에 <b>구간이 아니라 점</b>만 받습니다. <b>after seven</b>(7시 이후), <b>after my mom comes home</b>(엄마가 온 뒤)처럼 특정 시점이어야 합니다."
+    },
+    "within": {
+      head:"within an hour", headFill:"var(--span)", ko:"= 한 시간 이내 어느 때든",
+      cls:"verdict v-span", label:"within an hour → 한 시간 이내에",
+      note:"우리가 “한 시간 안에”라고 말할 때 쓰는 표현이 바로 이겁니다. 6시부터 7시 사이 <b>아무 때나</b> 해당됩니다."
+    }
+  };
+  var tlBtns = document.querySelectorAll("[data-tl]");
+  var tlIn = document.getElementById("tlIn");
+  var tlAfter = document.getElementById("tlAfter");
+  var tlWithin = document.getElementById("tlWithin");
+  var tlHead = document.getElementById("tlHead");
+  var tlKo = document.getElementById("tlKo");
+  var tlNote = document.getElementById("tlNote");
+
+  function setTL(k){
+    tlBtns.forEach(function(b){ b.setAttribute("aria-pressed", String(b.dataset.tl === k)); });
+    tlIn.style.opacity     = (k === "after") ? "0.18" : "1";
+    tlAfter.style.opacity  = (k === "after") ? "1" : "0";
+    tlWithin.style.opacity = (k === "within") ? "1" : "0";
+    var d = TL[k];
+    tlHead.textContent = d.head;
+    tlHead.style.fill = d.headFill;
+    tlHead.style.textDecoration = (k === "after") ? "line-through" : "none";
+    tlKo.textContent = d.ko;
+    tlNote.className = d.cls;
+    tlNote.innerHTML = '<p class="verdict__label">' + d.label + '</p>' +
+                       '<p class="verdict__note">' + d.note + '</p>';
+  }
+  tlBtns.forEach(function(b){ b.addEventListener("click", function(){ setTL(b.dataset.tl); }); });
+  [tlIn, tlAfter, tlWithin].forEach(function(g){ g.style.transition = "opacity .25s ease"; });
+
+  /* ---------- 04 in time / on time slider ---------- */
+  var arrive = document.getElementById("arrive");
+  var mk = document.getElementById("mk");
+  var mkT = document.getElementById("mkT");
+  var tv = document.getElementById("tv");
+  var tvLabel = document.getElementById("tvLabel");
+  var tvNote = document.getElementById("tvNote");
+  var DEADLINE = 460, START = 80;
+
+  function clockAt(px){
+    /* x=80 → 2:00, x=460 → 3:00 ; 1px ≈ 9.47s, show to the minute */
+    var mins = Math.round((px - START) / (DEADLINE - START) * 60) + 120;
+    var h = Math.floor(mins / 60), m = mins % 60;
+    if(m < 0){ m += 60; h -= 1; }
+    return h + ":" + (m < 10 ? "0" + m : m);
+  }
+  function setArrive(px){
+    mk.setAttribute("transform", "translate(" + px + ",0)");
+    mkT.textContent = clockAt(px);
+
+    var d;
+    if(Math.abs(px - DEADLINE) <= 7){
+      d = {cls:"verdict v-point", label:"on time", note:"약속한 <b>3:00 정각</b>, 그 점 위에 정확히 섰습니다. 이게 on time입니다."};
+    } else if(px > DEADLINE){
+      d = {cls:"verdict v-bad", label:"too late ✕", note:"범위를 벗어났습니다. in time도 on time도 아닙니다."};
+    } else if(px >= DEADLINE - 55){
+      d = {cls:"verdict v-span", label:"just in time", note:"구간 <b>끝에 아슬아슬하게</b> 걸쳐 들어왔습니다. 딱 맞춰 도착한 상태 — JIT 시스템의 그 just in time입니다."};
+    } else {
+      d = {cls:"verdict v-span", label:"in time", note:"여유 구간 <b>안 어디든</b> 들어오면 in time. 정각일 필요가 없다는 게 핵심입니다."};
+    }
+    tv.className = d.cls;
+    tvLabel.textContent = d.label;
+    tvNote.innerHTML = d.note;
+  }
+  arrive.addEventListener("input", function(){ setArrive(Number(arrive.value)); });
+  setArrive(Number(arrive.value));
+
+  /* ---------- 08 quiz ---------- */
+  var QS = [
+    { ask:'“<b>한 시간 후에</b> 도착할게.” — 알맞은 표현은?',
+      opts:["in an hour","after an hour","within an hour"], a:0,
+      why:'<b>in an hour</b>. 지금부터 한 시간이라는 <b>구간 전체</b>를 말하니 도착점은 한 시간 뒤입니다. after는 점만 받으므로 after an hour는 쓰지 않고, within an hour는 “한 시간 이내”라 뜻이 다릅니다.' },
+    { ask:'“약속은 3시야. <b>정각에</b> 와.” — 알맞은 표현은?',
+      opts:["Please come on time.","Please come in time."], a:0,
+      why:'<b>on time</b>. 3시라는 <b>한 점</b> 위에 서야 하니까요. in time이라고 하면 “늦지만 않게”라는 뜻이 되어 2시 30분에 와도 됩니다.' },
+    { ask:'대출 기간이 3주다. “<b>기한 안에</b> 반납해.” — 알맞은 표현은?',
+      opts:["You need to give it back in time.","You need to give it back on time."], a:0,
+      why:'<b>in time</b>. 3주라는 <b>여유 구간 안</b> 어디에 반납해도 되기 때문입니다. on time은 반납일 그 날짜를 콕 집습니다.' },
+    { ask:'사장이 팔걸이 안락의자에 <b>깊숙이 앉아</b> 있다. — 알맞은 표현은?',
+      opts:["The boss sits in the chair.","The boss sits on the chair."], a:0,
+      why:'<b>in the chair</b>. 의자라는 <b>공간을 통째로 차지</b>했기 때문입니다. 등받이 없는 스툴에 걸터앉아 접촉점 하나뿐이면 on the chair.' },
+    { ask:'“나는 <b>너라는 사람 자체를</b> 믿어.” — 알맞은 표현은?',
+      opts:["I believe in you.","I believe you."], a:0,
+      why:'<b>I believe in you</b>. 그 사람 <b>전체 범위</b>를 믿는다는 뜻이라 훨씬 무겁습니다. I believe you는 “지금 그 말이 사실이라고 믿는다”는 한 점입니다.' },
+    { ask:'<code>He\'s interested ___ honey.</code> — 빈칸에 들어갈 말은?',
+      opts:["in","on","at"], a:0,
+      why:'<b>in</b>. 관심이 <b>꿀이라는 대상 전체에 걸쳐</b> 뻗어 있는 상태이기 때문입니다. interest라는 단어 자체가 이 범위를 품고 있습니다.' }
+  ];
+
+  var quizEl = document.getElementById("quiz");
+  var scoreN = document.getElementById("scoreN");
+  var scoreMsg = document.getElementById("scoreMsg");
+  var answered = 0, correct = 0;
+
+  function render(){
+    quizEl.innerHTML = "";
+    answered = 0; correct = 0;
+    scoreN.textContent = "0";
+    scoreMsg.textContent = "문제를 풀면 여기에 결과가 나옵니다.";
+
+    QS.forEach(function(q, i){
+      var box = document.createElement("div");
+      box.className = "q";
+      var opts = q.opts.map(function(o, j){
+        return '<button type="button" data-j="' + j + '">' + o + '</button>';
+      }).join("");
+      box.innerHTML =
+        '<p class="q__no">Question ' + (i+1) + '</p>' +
+        '<p class="q__ask">' + q.ask + '</p>' +
+        '<div class="q__opts">' + opts + '</div>' +
+        '<p class="q__why">' + q.why + '</p>';
+
+      box.querySelectorAll("button").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          if(box.classList.contains("done")) return;
+          box.classList.add("done");
+          var j = Number(btn.dataset.j);
+          box.querySelectorAll("button").forEach(function(b){
+            b.disabled = true;
+            if(Number(b.dataset.j) === q.a) b.classList.add("right");
+          });
+          if(j !== q.a) btn.classList.add("wrong");
+          answered++;
+          if(j === q.a) correct++;
+          scoreN.textContent = correct;
+          if(answered === QS.length){
+            scoreMsg.textContent =
+              correct === QS.length ? "전부 맞혔습니다. 이제 in을 번역하지 않고 그림으로 읽고 있는 겁니다." :
+              correct >= 4 ? "거의 잡혔습니다. 틀린 문항의 해설에서 화살표 그림을 다시 떠올려 보세요." :
+              "괜찮습니다. 03번과 04번 도해로 돌아가 손잡이를 직접 움직여 보세요.";
+          } else {
+            scoreMsg.textContent = answered + "문제 풀었습니다. 남은 " + (QS.length - answered) + "문제도 이어서 풀어 보세요.";
+          }
+        });
+      });
+      quizEl.appendChild(box);
+    });
+  }
+  document.getElementById("reset").addEventListener("click", function(){
+    render();
+    document.getElementById("p8").scrollIntoView({behavior: reduce ? "auto" : "smooth", block:"start"});
+  });
+  render();
+})();
+</script>
+
+</body>
+</html>
