@@ -69,7 +69,7 @@ async function capture(key,limit,status,onComplete,preparation=0){
  let stream;
  try{
   const request=navigator.mediaDevices.getUserMedia({audio:$('micDevice').value?{deviceId:{exact:$('micDevice').value}}:true}).then(s=>{if(token.cancelled){s.getTracks().forEach(t=>t.stop());throw new DOMException('Cancelled','AbortError');}return s;});
-  const deadline=new Promise((_,reject)=>{token.rejectPermission=reject;token.permissionTimer=setTimeout(()=>{token.cancelled=true;reject(new DOMException('Permission timeout','TimeoutError'));},15000);});
+  const deadline=new Promise((_,reject)=>{token.rejectPermission=reject;token.permissionTimer=setTimeout(()=>{if(active===token&&!token.cancelled)status.textContent='마이크 권한을 기다리고 있습니다. 브라우저의 권한 창에서 허용해 주세요. 창이 보이지 않으면 사이트 권한을 확인하거나 취소한 뒤 다시 시도해 주세요.';},15000);});
   stream=await Promise.race([request,deadline]);clearTimeout(token.permissionTimer);token.rejectPermission=null;
  }catch(e){closeMonitor(token);clearTimeout(token.permissionTimer);m.errors.push(e.name);if(active===token)active=null;lock();if(e.name!=='AbortError')status.textContent=micError(e.name);return;}
  token.stream=stream;monitorInput(token,stream);refreshMicrophones();$('micDeviceStatus').textContent='연결된 입력: '+(stream.getAudioTracks()[0]?.label||'마이크');
