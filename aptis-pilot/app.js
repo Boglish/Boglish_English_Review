@@ -29,14 +29,37 @@ function audioPlayer(clip){
   try{await a.play();}catch(e){done(e.name);}
  };update();box.append(b,stop,status);return box;
 }
-async function refreshMicrophones(){
- const select=$('micDevice'),previous=select.value;
+async function refreshMicrophones(preferredId){
+ const select=$('micDevice'),previous=typeof preferredId==='string'?preferredId:select.value;
  try{const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput');
  select.replaceChildren(new Option('시스템 기본 마이크',''));
  for(const [n,d] of devices.entries())if(d.deviceId)select.add(new Option(d.label||('마이크 '+(n+1)),d.deviceId));
  if([...select.options].some(o=>o.value===previous))select.value=previous;
  $('micDeviceStatus').textContent=devices.length?'사용할 입력 장치를 선택하세요. 장치 이름은 권한 허용 후 표시됩니다.':'입력 장치가 아직 보이지 않습니다. 마이크 확인을 눌러 권한을 허용하세요.';
  }catch(e){$('micDeviceStatus').textContent='이 브라우저에서 입력 장치 목록을 확인할 수 없습니다.';}
+}
+async function acquireMicrophone(selected,rawAudio,token){
+ const processing=rawAudio?{echoCancellation:false,noiseSuppression:false,autoGainControl:false}:{};
+ let stream=await navigator.mediaDevices.getUserMedia({audio:{...(selected?{deviceId:{exact:selected}}:{}),...processing}});
+ try{
+  if(token.cancelled)throw new DOMException('Cancelled','AbortError');
+  const initial=stream.getAudioTracks()[0];
+  // Only override automatic/default selection of this known virtual input.
+  // Preserve an explicitly selected physical or virtual device.
+  if((!selected||selected==='default'||selected==='communications')&&/sharing\s*audio/i.test(initial?.label||'')){
+   const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput'&&d.deviceId&&!['default','communications'].includes(d.deviceId)&&!/sharing\s*audio|virtual|stereo mix|스테레오 믹스|loopback|cable/i.test(d.label));
+   if(token.cancelled)throw new DOMException('Cancelled','AbortError');
+   const target=devices.find(d=>/microphone array|마이크 배열/i.test(d.label))||devices.find(d=>/microphone|headset|마이크|헤드셋/i.test(d.label));
+   if(!target)throw new DOMException('Only virtual input available','VirtualInputError');
+   stream.getTracks().forEach(t=>t.stop());stream=null;
+   token.status.textContent='가상 입력 대신 실제 마이크를 연결하고 있습니다: '+target.label;
+   stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:target.deviceId},...processing}});
+   if(token.cancelled)throw new DOMException('Cancelled','AbortError');
+   if(/sharing\s*audio/i.test(stream.getAudioTracks()[0]?.label||''))throw new DOMException('Physical input unavailable','VirtualInputError');
+   token.automaticallySelected=target.deviceId;
+  }
+  return stream;
+ }catch(e){stream?.getTracks().forEach(t=>t.stop());throw e;}
 }
 function closeMonitor(t){clearInterval(t.levelTimer);t.audioContext?.close().catch(()=>{});$('micLevel').value=0;}
 function monitorInput(t,stream){
@@ -57,6 +80,7 @@ function micError(name){
  const help=' 내장 브라우저에서 권한 창이 나타나지 않으면 이 주소를 Chrome 또는 Edge에서 직접 열어 마이크를 허용해 주세요.';
  if(name==='TimeoutError')return '마이크 권한 요청에 응답이 없습니다. 권한 창을 확인하거나 다시 시도해 주세요.'+help;
  if(name==='NotAllowedError'||name==='SecurityError')return '마이크 권한이 차단되었습니다. 사이트의 마이크 권한과 Windows 개인정보 설정의 마이크 접근을 확인해 주세요.'+help;
+ if(name==='VirtualInputError')return '브라우저에서 Sharing Audio 가상 입력만 연결되고 있습니다. 실제 마이크를 사용할 수 없어 녹음을 시작하지 않았습니다. 입력 장치 목록에서 Microphone Array 또는 헤드셋을 선택해 주세요.';
  if(name==='NotFoundError')return '연결된 마이크를 찾지 못했습니다. 마이크 또는 헤드셋을 연결한 뒤 다시 시도해 주세요.';
  if(name==='NotReadableError')return '마이크를 열 수 없습니다. 다른 녹음 앱을 종료하고 Windows 소리 설정의 입력 장치를 확인해 주세요.';
  return '녹음을 시작하지 못했습니다 ('+name+'). 마이크 연결과 브라우저 권한을 확인해 주세요.';
@@ -68,11 +92,11 @@ async function capture(key,limit,status,onComplete,preparation=0,rawAudio=false)
  const token={stream:null,recorder:null,timer:null,cancelled:false,status};try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){token.audioContext=new AC();token.audioContext.resume().catch(()=>{});}}catch{}active=token;if(key==='mic-check')latestMicToken=token;lock();status.textContent='마이크 접근을 허용해 주세요…';
  let stream;
  try{
-  const request=navigator.mediaDevices.getUserMedia({audio:{...($('micDevice').value?{deviceId:{exact:$('micDevice').value}}:{}),...(rawAudio?{echoCancellation:false,noiseSuppression:false,autoGainControl:false}:{})}}).then(s=>{if(token.cancelled){s.getTracks().forEach(t=>t.stop());throw new DOMException('Cancelled','AbortError');}return s;});
+  const request=acquireMicrophone($('micDevice').value,rawAudio,token).then(s=>{if(token.cancelled){s.getTracks().forEach(t=>t.stop());throw new DOMException('Cancelled','AbortError');}return s;});
   const deadline=new Promise((_,reject)=>{token.rejectPermission=reject;token.permissionTimer=setTimeout(()=>{if(active===token&&!token.cancelled)status.textContent='마이크 권한을 기다리고 있습니다. 브라우저의 권한 창에서 허용해 주세요. 창이 보이지 않으면 사이트 권한을 확인하거나 취소한 뒤 다시 시도해 주세요.';},15000);});
   stream=await Promise.race([request,deadline]);clearTimeout(token.permissionTimer);token.rejectPermission=null;
  }catch(e){closeMonitor(token);clearTimeout(token.permissionTimer);m.errors.push(e.name);if(active===token)active=null;lock();if(e.name!=='AbortError')status.textContent=micError(e.name);return;}
- token.stream=stream;const inputTrack=stream.getAudioTracks()[0];token.inputName=inputTrack?.label||'마이크';m.input_name=token.inputName;m.processing_mode=rawAudio?'processing_disabled':'browser_default';monitorInput(token,stream);refreshMicrophones();
+ token.stream=stream;const inputTrack=stream.getAudioTracks()[0];token.inputName=inputTrack?.label||'마이크';m.input_name=token.inputName;m.processing_mode=rawAudio?'processing_disabled':'browser_default';monitorInput(token,stream);refreshMicrophones(token.automaticallySelected);
  const clean=()=>{closeMonitor(token);clearInterval(token.timer);stream.getTracks().forEach(t=>t.stop());if(active===token)active=null;lock();};
  const startRecording=()=>{
   if(token.cancelled){clean();return;}
