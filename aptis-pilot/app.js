@@ -2,13 +2,13 @@
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const words=v=>v.trim().split(/\s+/u).filter(Boolean).length;
-let state=null,index=0,active=null,result=null,entered=0,playing=null,micURL=null;
+let state=null,index=0,active=null,result=null,entered=0,playing=null,micURL=null,latestMicToken=null;
 const blobs=new Map(),urls=new Map();
 const names={Grammar:'문법',Vocabulary:'어휘',Reading:'읽기',Listening:'듣기',Writing:'쓰기',Speaking:'말하기'};
 function error(e){$('globalError').textContent=e instanceof Error?e.message:String(e);}
 function time(s){return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;}
 function busy(){return Boolean(active||playing);}
-function lock(){document.querySelectorAll('#nav button,#prev,#next,#finish,#home,#start,#micCheck,#micDevice,#micRefresh,.recordButton,.listenButton').forEach(b=>b.disabled=busy());if(!busy()&&state){$('prev').disabled=index===0;$('next').disabled=index===state.items.length-1;document.querySelectorAll('.listenButton').forEach(b=>b.disabled=(state.media[b.dataset.clip]?.plays||0)>=2);}}
+function lock(){document.querySelectorAll('#nav button,#prev,#next,#finish,#home,#start,#micCheck,#micRawCheck,#micDevice,#micRefresh,.recordButton,.listenButton').forEach(b=>b.disabled=busy());if(!busy()&&state){$('prev').disabled=index===0;$('next').disabled=index===state.items.length-1;document.querySelectorAll('.listenButton').forEach(b=>b.disabled=(state.media[b.dataset.clip]?.plays||0)>=2);}}
 function checkpoint(){if(state&&entered){const id=state.items[index].id;state.dwell_seconds[id]=(state.dwell_seconds[id]||0)+(Date.now()-entered)/1000;entered=Date.now();}}
 function recordURL(key,blob){if(urls.has(key))URL.revokeObjectURL(urls.get(key));const url=URL.createObjectURL(blob);urls.set(key,url);return url;}
 async function requestJSON(url,options){const r=await fetch(url,options);if(!r.ok)throw Error('요청을 처리하지 못했습니다. 서버 연결을 확인하고 다시 시도해 주세요.');return r.json();}
@@ -61,18 +61,18 @@ function micError(name){
  if(name==='NotReadableError')return '마이크를 열 수 없습니다. 다른 녹음 앱을 종료하고 Windows 소리 설정의 입력 장치를 확인해 주세요.';
  return '녹음을 시작하지 못했습니다 ('+name+'). 마이크 연결과 브라우저 권한을 확인해 주세요.';
 }
-async function capture(key,limit,status,onComplete,preparation=0){
+async function capture(key,limit,status,onComplete,preparation=0,rawAudio=false){
  if(busy())return;
  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){status.textContent='이 브라우저에서는 녹음을 지원하지 않습니다. 최신 Chrome 또는 Edge에서 열어 주세요.';return;}
  const m=state?(state.media[key]||(state.media[key]={attempts:0,errors:[]})):{attempts:0,errors:[]};
- const token={stream:null,recorder:null,timer:null,cancelled:false,status};try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){token.audioContext=new AC();token.audioContext.resume().catch(()=>{});}}catch{}active=token;lock();status.textContent='마이크 접근을 허용해 주세요…';
+ const token={stream:null,recorder:null,timer:null,cancelled:false,status};try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){token.audioContext=new AC();token.audioContext.resume().catch(()=>{});}}catch{}active=token;if(key==='mic-check')latestMicToken=token;lock();status.textContent='마이크 접근을 허용해 주세요…';
  let stream;
  try{
-  const request=navigator.mediaDevices.getUserMedia({audio:$('micDevice').value?{deviceId:{exact:$('micDevice').value}}:true}).then(s=>{if(token.cancelled){s.getTracks().forEach(t=>t.stop());throw new DOMException('Cancelled','AbortError');}return s;});
+  const request=navigator.mediaDevices.getUserMedia({audio:{...($('micDevice').value?{deviceId:{exact:$('micDevice').value}}:{}),...(rawAudio?{echoCancellation:false,noiseSuppression:false,autoGainControl:false}:{})}}).then(s=>{if(token.cancelled){s.getTracks().forEach(t=>t.stop());throw new DOMException('Cancelled','AbortError');}return s;});
   const deadline=new Promise((_,reject)=>{token.rejectPermission=reject;token.permissionTimer=setTimeout(()=>{if(active===token&&!token.cancelled)status.textContent='마이크 권한을 기다리고 있습니다. 브라우저의 권한 창에서 허용해 주세요. 창이 보이지 않으면 사이트 권한을 확인하거나 취소한 뒤 다시 시도해 주세요.';},15000);});
   stream=await Promise.race([request,deadline]);clearTimeout(token.permissionTimer);token.rejectPermission=null;
  }catch(e){closeMonitor(token);clearTimeout(token.permissionTimer);m.errors.push(e.name);if(active===token)active=null;lock();if(e.name!=='AbortError')status.textContent=micError(e.name);return;}
- token.stream=stream;monitorInput(token,stream);refreshMicrophones();$('micDeviceStatus').textContent='연결된 입력: '+(stream.getAudioTracks()[0]?.label||'마이크');
+ token.stream=stream;const inputTrack=stream.getAudioTracks()[0];token.inputName=inputTrack?.label||'마이크';m.input_name=token.inputName;m.processing_mode=rawAudio?'processing_disabled':'browser_default';monitorInput(token,stream);refreshMicrophones();
  const clean=()=>{closeMonitor(token);clearInterval(token.timer);stream.getTracks().forEach(t=>t.stop());if(active===token)active=null;lock();};
  const startRecording=()=>{
   if(token.cancelled){clean();return;}
@@ -82,22 +82,23 @@ async function capture(key,limit,status,onComplete,preparation=0){
    const chunks=[];let failed=false;const begun=performance.now();m.attempts++;
    recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
    recorder.onerror=e=>{failed=true;m.errors.push(e.error?.name||'record_error');status.textContent='녹음 오류가 발생했습니다. 다시 시도해 주세요.';if(recorder.state!=='inactive')recorder.stop();else clean();};
-   recorder.onstop=()=>{
+   recorder.onstop=async()=>{
     const duration=(performance.now()-begun)/1000,blob=new Blob(chunks,{type:recorder.mimeType});clean();
     if(failed||!blob.size){m.errors.push('empty_or_failed_recording');status.textContent='유효한 녹음 파일을 만들지 못했습니다. 다시 녹음해 주세요.';return;}
     m.signal_detected=token.signalChecked?token.peak>.003:null;m.peak_rms=token.signalChecked?Number(token.peak.toFixed(5)):null;m.duration=Number(duration.toFixed(2));m.bytes=blob.size;m.mime=blob.type;m.recorded_at=new Date().toISOString();m.limit_seconds=limit;m.preparation_seconds=preparation;
     status.textContent=m.signal_detected===false?'녹음 파일은 생성됐지만 입력 신호가 거의 없습니다. 다른 마이크를 선택하거나 음소거를 해제한 뒤 다시 확인하세요.':`녹음 저장 · ${time(duration)} · ${m.attempts}회 시도. 반드시 재생해서 본인의 목소리가 들리는지 확인해 주세요.`;
     onComplete(blob,m);
+    if(key==='mic-check'){const info=await inspectRecordedAudio(blob);if(latestMicToken!==token)return;if(info){m.file_peak=info.peak;m.file_duration=info.duration;status.textContent=`연결된 입력: ${token.inputName} · ${rawAudio?'음성 처리 끔':'기본 녹음'} · 파일 길이 ${info.duration.toFixed(1)}초. `+(info.peak<0.00001?'저장된 파일에도 신호가 거의 없습니다. 아래 ‘음성 처리 없이 비교 녹음’을 확인해 주세요.':'파일에 소리 신호가 있습니다. 재생해서 본인의 목소리가 들리는지 확인해 주세요.');}else status.textContent+=' 연결된 입력: '+token.inputName;}
    };
    token.peak=0;token.signalChecked=false;recorder.start();
-   const tick=()=>{const elapsed=(performance.now()-begun)/1000;status.textContent=`녹음 중 · 남은 시간 ${time(Math.max(0,limit-elapsed))}`;if(elapsed>=limit&&recorder.state==='recording')recorder.stop();};
+   const tick=()=>{const elapsed=(performance.now()-begun)/1000;status.textContent=key==='mic-check'?`지금 말씀해 주세요: ‘안녕하세요. 마이크 소리를 확인하고 있습니다.’ · 남은 시간 ${Math.ceil(Math.max(0,limit-elapsed))}초 · ${token.inputName}`:`녹음 중 · 남은 시간 ${time(Math.max(0,limit-elapsed))}`;if(elapsed>=limit&&recorder.state==='recording')recorder.stop();};
    tick();token.timer=setInterval(tick,200);
   }catch(e){m.errors.push(e.name);clean();status.textContent='녹음을 시작하지 못했습니다. 마이크 연결을 확인해 주세요.';}
  };
  if(preparation){
   // Obtain permission first; no audio is recorded during the preparation period.
   const end=performance.now()+preparation*1000;
-  const tick=()=>{status.textContent=`준비 시간 · ${time(Math.max(0,(end-performance.now())/1000))} 후 자동 녹음`;if(performance.now()>=end){clearInterval(token.timer);startRecording();}};
+  const tick=()=>{status.textContent=key==='mic-check'?`마이크 연결됨: ${token.inputName} · ${Math.ceil(Math.max(0,(end-performance.now())/1000))}초 후 녹음합니다. 안내 문장을 읽을 준비를 해 주세요.`:`준비 시간 · ${time(Math.max(0,(end-performance.now())/1000))} 후 자동 녹음`;if(performance.now()>=end){clearInterval(token.timer);startRecording();}};
   tick();token.timer=setInterval(tick,200);
  }else startRecording();
 }
@@ -153,7 +154,12 @@ function restart(){if(busy())return;if(state&&!confirm('처음 선택으로 돌�
 $('start').onclick=async()=>{if(busy())return;$('start').disabled=true;try{const mode=document.querySelector('input[name=mode]:checked').value;const bank=await requestJSON('items.json');bank.items=bank.items.filter(i=>mode==='complete'||i.stage==='basic');state={...bank,mode,answers:{},media:{},dwell_seconds:{},started:Date.now(),hidden_count:0};index=0;$('intro').hidden=true;$('workspace').hidden=false;render();}catch(e){$('introError').textContent=e.message;}finally{$('start').disabled=false;}};
 $('micRefresh').onclick=refreshMicrophones;
 $('micCancel').onclick=cancelCapture;
-$('micCheck').onclick=()=>capture('mic-check',3,$('micMessage'),blob=>{if(micURL)URL.revokeObjectURL(micURL);micURL=URL.createObjectURL(blob);$('micPreview').src=micURL;$('micPreview').hidden=false;});
+async function inspectRecordedAudio(blob){
+ let ctx;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;ctx=new AC();const audio=await ctx.decodeAudioData(await blob.arrayBuffer());let peak=0;for(let c=0;c<audio.numberOfChannels;c++){const data=audio.getChannelData(c);for(let n=0;n<data.length;n++)peak=Math.max(peak,Math.abs(data[n]));}return{peak,duration:audio.duration};}catch{return null;}finally{ctx?.close().catch(()=>{});}
+}
+function checkMicrophone(raw=false){$('micPreview').pause();return capture('mic-check',10,$('micMessage'),blob=>{if(micURL)URL.revokeObjectURL(micURL);micURL=URL.createObjectURL(blob);$('micPreview').src=micURL;$('micPreview').muted=false;$('micPreview').volume=1;$('micPreview').hidden=false;},3,raw);}
+$('micCheck').onclick=()=>checkMicrophone(false);
+$('micRawCheck').onclick=()=>checkMicrophone(true);
 $('prev').onclick=()=>move(index-1);$('next').onclick=()=>move(index+1);$('finish').onclick=finish;$('home').onclick=restart;$('restart').onclick=restart;
 $('back').onclick=()=>{$('results').hidden=true;$('workspace').hidden=false;render();};
 $('downloadReport').onclick=()=>download(new Blob([reportHTML()],{type:'text/html;charset=utf-8'}),filename('result.html'));
