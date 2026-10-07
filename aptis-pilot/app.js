@@ -29,115 +29,6 @@ function audioPlayer(clip){
   try{await a.play();}catch(e){done(e.name);}
  };update();box.append(b,stop,status);return box;
 }
-async function refreshMicrophones(preferredId){
- const select=$('micDevice'),previous=typeof preferredId==='string'?preferredId:select.value;
- try{const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput');
- select.replaceChildren(new Option('시스템 기본 마이크',''));
- for(const [n,d] of devices.entries())if(d.deviceId)select.add(new Option(d.label||('마이크 '+(n+1)),d.deviceId));
- if([...select.options].some(o=>o.value===previous))select.value=previous;
- $('micDeviceStatus').textContent=devices.length?'사용할 입력 장치를 선택하세요. 장치 이름은 권한 허용 후 표시됩니다.':'입력 장치가 아직 보이지 않습니다. 마이크 확인을 눌러 권한을 허용하세요.';
- }catch(e){$('micDeviceStatus').textContent='이 브라우저에서 입력 장치 목록을 확인할 수 없습니다.';}
-}
-async function acquireMicrophone(selected,rawAudio,token){
- const processing=rawAudio?{echoCancellation:false,noiseSuppression:false,autoGainControl:false}:{};
- let stream=await navigator.mediaDevices.getUserMedia({audio:{...(selected?{deviceId:{exact:selected}}:{}),...processing}});
- try{
-  if(token.cancelled)throw new DOMException('Cancelled','AbortError');
-  const initial=stream.getAudioTracks()[0];
-  // Only override automatic/default selection of this known virtual input.
-  // Preserve an explicitly selected physical or virtual device.
-  if((!selected||selected==='default'||selected==='communications')&&/sharing\s*audio/i.test(initial?.label||'')){
-   const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput'&&d.deviceId&&!['default','communications'].includes(d.deviceId)&&!/sharing\s*audio|virtual|stereo mix|스테레오 믹스|loopback|cable/i.test(d.label));
-   if(token.cancelled)throw new DOMException('Cancelled','AbortError');
-   const target=devices.find(d=>/microphone array|마이크 배열/i.test(d.label))||devices.find(d=>/microphone|headset|마이크|헤드셋/i.test(d.label));
-   if(!target)throw new DOMException('Only virtual input available','VirtualInputError');
-   stream.getTracks().forEach(t=>t.stop());stream=null;
-   token.status.textContent='가상 입력 대신 실제 마이크를 연결하고 있습니다: '+target.label;
-   stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:target.deviceId},...processing}});
-   if(token.cancelled)throw new DOMException('Cancelled','AbortError');
-   if(/sharing\s*audio/i.test(stream.getAudioTracks()[0]?.label||''))throw new DOMException('Physical input unavailable','VirtualInputError');
-   token.automaticallySelected=target.deviceId;
-  }
-  return stream;
- }catch(e){stream?.getTracks().forEach(t=>t.stop());throw e;}
-}
-function closeMonitor(t){clearInterval(t.levelTimer);t.audioContext?.close().catch(()=>{});$('micLevel').value=0;}
-function monitorInput(t,stream){
- const ctx=t.audioContext;if(!ctx)return;
- try{const source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser();analyser.fftSize=1024;source.connect(analyser);const samples=new Float32Array(analyser.fftSize);t.peak=0;
- t.levelTimer=setInterval(()=>{if(ctx.state!=='running'){t.signalChecked=false;$('micLevelText').textContent='입력 음량 확인 불가 · 녹음을 재생해 확인해 주세요.';return;}
- analyser.getFloatTimeDomainData(samples);const rms=Math.sqrt(samples.reduce((sum,v)=>sum+v*v,0)/samples.length);t.signalChecked=true;t.peak=Math.max(t.peak,rms);$('micLevel').value=Math.min(100,Math.round(rms*600));$('micLevelText').textContent=rms>.003?'입력 신호 감지 · 말씀해 주세요.':'입력이 거의 없습니다 · 마이크에 말해 보세요.';
- },100);
- }catch(e){$('micLevelText').textContent='입력 음량 확인 불가 · 녹음 재생으로 확인해 주세요.';}
-}
-function cancelCapture(){
- if(!active)return;const t=active;
- if(t.recorder?.state==='recording'){t.recorder.stop();return;}
- t.cancelled=true;closeMonitor(t);clearInterval(t.timer);clearTimeout(t.permissionTimer);t.stream?.getTracks().forEach(track=>track.stop());t.rejectPermission?.(new DOMException('Cancelled','AbortError'));active=null;lock();
- if(t.status)t.status.textContent='마이크 확인 또는 준비를 취소했습니다. 다시 시도할 수 있습니다.';
-}
-function micError(name){
- const help=' 내장 브라우저에서 권한 창이 나타나지 않으면 이 주소를 Chrome 또는 Edge에서 직접 열어 마이크를 허용해 주세요.';
- if(name==='TimeoutError')return '마이크 권한 요청에 응답이 없습니다. 권한 창을 확인하거나 다시 시도해 주세요.'+help;
- if(name==='NotAllowedError'||name==='SecurityError')return '마이크 권한이 차단되었습니다. 사이트의 마이크 권한과 Windows 개인정보 설정의 마이크 접근을 확인해 주세요.'+help;
- if(name==='VirtualInputError')return '브라우저에서 Sharing Audio 가상 입력만 연결되고 있습니다. 실제 마이크를 사용할 수 없어 녹음을 시작하지 않았습니다. 입력 장치 목록에서 Microphone Array 또는 헤드셋을 선택해 주세요.';
- if(name==='NotFoundError')return '연결된 마이크를 찾지 못했습니다. 마이크 또는 헤드셋을 연결한 뒤 다시 시도해 주세요.';
- if(name==='NotReadableError')return '마이크를 열 수 없습니다. 다른 녹음 앱을 종료하고 Windows 소리 설정의 입력 장치를 확인해 주세요.';
- return '녹음을 시작하지 못했습니다 ('+name+'). 마이크 연결과 브라우저 권한을 확인해 주세요.';
-}
-async function capture(key,limit,status,onComplete,preparation=0,rawAudio=false){
- if(busy())return;
- if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){status.textContent='이 브라우저에서는 녹음을 지원하지 않습니다. 최신 Chrome 또는 Edge에서 열어 주세요.';return;}
- const m=state?(state.media[key]||(state.media[key]={attempts:0,errors:[]})):{attempts:0,errors:[]};
- const token={stream:null,recorder:null,timer:null,cancelled:false,status};try{const AC=window.AudioContext||window.webkitAudioContext;if(AC){token.audioContext=new AC();token.audioContext.resume().catch(()=>{});}}catch{}active=token;if(key==='mic-check')latestMicToken=token;lock();status.textContent='마이크 접근을 허용해 주세요…';
- let stream;
- try{
-  const request=acquireMicrophone($('micDevice').value,rawAudio,token).then(s=>{if(token.cancelled){s.getTracks().forEach(t=>t.stop());throw new DOMException('Cancelled','AbortError');}return s;});
-  const deadline=new Promise((_,reject)=>{token.rejectPermission=reject;token.permissionTimer=setTimeout(()=>{if(active===token&&!token.cancelled)status.textContent='마이크 권한을 기다리고 있습니다. 브라우저의 권한 창에서 허용해 주세요. 창이 보이지 않으면 사이트 권한을 확인하거나 취소한 뒤 다시 시도해 주세요.';},15000);});
-  stream=await Promise.race([request,deadline]);clearTimeout(token.permissionTimer);token.rejectPermission=null;
- }catch(e){closeMonitor(token);clearTimeout(token.permissionTimer);m.errors.push(e.name);if(active===token)active=null;lock();if(e.name!=='AbortError')status.textContent=micError(e.name);return;}
- token.stream=stream;const inputTrack=stream.getAudioTracks()[0];token.inputName=inputTrack?.label||'마이크';m.input_name=token.inputName;m.processing_mode=rawAudio?'processing_disabled':'browser_default';monitorInput(token,stream);refreshMicrophones(token.automaticallySelected);
- const clean=()=>{closeMonitor(token);clearInterval(token.timer);stream.getTracks().forEach(t=>t.stop());if(active===token)active=null;lock();};
- const startRecording=()=>{
-  if(token.cancelled){clean();return;}
-  try{
-   const mime=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(t=>MediaRecorder.isTypeSupported(t));
-   const recorder=new MediaRecorder(stream,mime?{mimeType:mime}:{});token.recorder=recorder;
-   const chunks=[];let failed=false;const begun=performance.now();m.attempts++;
-   recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
-   recorder.onerror=e=>{failed=true;m.errors.push(e.error?.name||'record_error');status.textContent='녹음 오류가 발생했습니다. 다시 시도해 주세요.';if(recorder.state!=='inactive')recorder.stop();else clean();};
-   recorder.onstop=async()=>{
-    const duration=(performance.now()-begun)/1000,blob=new Blob(chunks,{type:recorder.mimeType});clean();
-    if(failed||!blob.size){m.errors.push('empty_or_failed_recording');status.textContent='유효한 녹음 파일을 만들지 못했습니다. 다시 녹음해 주세요.';return;}
-    m.signal_detected=token.signalChecked?token.peak>.003:null;m.peak_rms=token.signalChecked?Number(token.peak.toFixed(5)):null;m.duration=Number(duration.toFixed(2));m.bytes=blob.size;m.mime=blob.type;m.recorded_at=new Date().toISOString();m.limit_seconds=limit;m.preparation_seconds=preparation;
-    status.textContent=m.signal_detected===false?'녹음 파일은 생성됐지만 입력 신호가 거의 없습니다. 다른 마이크를 선택하거나 음소거를 해제한 뒤 다시 확인하세요.':`녹음 저장 · ${time(duration)} · ${m.attempts}회 시도. 반드시 재생해서 본인의 목소리가 들리는지 확인해 주세요.`;
-    onComplete(blob,m);
-    if(key==='mic-check'){const info=await inspectRecordedAudio(blob);if(latestMicToken!==token)return;if(info){m.file_peak=info.peak;m.file_duration=info.duration;status.textContent=`연결된 입력: ${token.inputName} · ${rawAudio?'음성 처리 끔':'기본 녹음'} · 파일 길이 ${info.duration.toFixed(1)}초. `+(info.peak<0.00001?'저장된 파일에도 신호가 거의 없습니다. 아래 ‘음성 처리 없이 비교 녹음’을 확인해 주세요.':'파일에 소리 신호가 있습니다. 재생해서 본인의 목소리가 들리는지 확인해 주세요.');}else status.textContent+=' 연결된 입력: '+token.inputName;}
-   };
-   token.peak=0;token.signalChecked=false;recorder.start();
-   const tick=()=>{const elapsed=(performance.now()-begun)/1000;status.textContent=key==='mic-check'?`지금 말씀해 주세요: ‘안녕하세요. 마이크 소리를 확인하고 있습니다.’ · 남은 시간 ${Math.ceil(Math.max(0,limit-elapsed))}초 · ${token.inputName}`:`녹음 중 · 남은 시간 ${time(Math.max(0,limit-elapsed))}`;if(elapsed>=limit&&recorder.state==='recording')recorder.stop();};
-   tick();token.timer=setInterval(tick,200);
-  }catch(e){m.errors.push(e.name);clean();status.textContent='녹음을 시작하지 못했습니다. 마이크 연결을 확인해 주세요.';}
- };
- if(preparation){
-  // Obtain permission first; no audio is recorded during the preparation period.
-  const end=performance.now()+preparation*1000;
-  const tick=()=>{status.textContent=key==='mic-check'?`마이크 연결됨: ${token.inputName} · ${Math.ceil(Math.max(0,(end-performance.now())/1000))}초 후 녹음합니다. 안내 문장을 읽을 준비를 해 주세요.`:`준비 시간 · ${time(Math.max(0,(end-performance.now())/1000))} 후 자동 녹음`;if(performance.now()>=end){clearInterval(token.timer);startRecording();}};
-  tick();token.timer=setInterval(tick,200);
- }else startRecording();
-}
-function speechControls(item,q,n,box){
- const key=`${item.id}-${n}`,status=document.createElement('p');status.className='recordStatus';status.setAttribute('role','status');
- const row=document.createElement('div');row.className='actions';
- const start=document.createElement('button');start.className='recordButton';start.textContent=blobs.has(key)?'다시 녹음':q.preparation_seconds?`준비 ${q.preparation_seconds}초 후 녹음`:'녹음 시작';
- const stop=document.createElement('button');stop.className='secondary';stop.textContent='녹음 종료 / 준비 취소';
- const playback=document.createElement('audio');playback.controls=true;playback.hidden=!blobs.has(key);if(blobs.has(key))playback.src=urls.get(key);
- const save=document.createElement('button');save.className='secondary';save.textContent='이 녹음 저장';save.hidden=!blobs.has(key);save.onclick=()=>download(blobs.get(key),`${key}.${state.media[key].mime.includes('mp4')?'m4a':'webm'}`);
- if(blobs.has(key))status.textContent=`녹음 ${time(state.media[key].duration)} · ${state.media[key].attempts}회 시도 · 재생해서 확인해 주세요.`;
- start.onclick=()=>{if(blobs.has(key)&&!confirm('새 녹음이 성공하면 이전 녹음을 교체합니다. 다시 녹음할까요?'))return;playback.pause();capture(key,q.response_seconds,status,(blob)=>{blobs.set(key,blob);playback.src=recordURL(key,blob);playback.hidden=false;save.hidden=false;start.textContent='다시 녹음';},q.preparation_seconds||0);};
- stop.onclick=cancelCapture;
- row.append(start,stop,save);box.append(row,status,playback);
-}
 function render(){
  const item=state.items[index];entered=Date.now();$('progress').textContent=`${index+1} / ${state.items.length} 과제 · ${item.stage==='basic'?'기본':'확장'}`;$('bar').max=state.items.length;$('bar').value=index+1;
  $('skill').textContent=`${names[item.skill]||item.skill} · ${item.id}`;$('title').textContent=item.title;$('prompt').textContent=item.prompt;
@@ -161,34 +52,35 @@ function render(){
  $('nav').replaceChildren();state.items.forEach((i,n)=>{const b=document.createElement('button');b.textContent=`${n+1} ${names[i.skill]||i.skill}`;b.title=i.title;b.setAttribute('aria-current',String(index===n));b.onclick=()=>move(n);$('nav').append(b);});lock();
 }
 function move(n){if(busy()||n<0||n>=state.items.length)return;checkpoint();document.querySelectorAll('audio').forEach(a=>a.pause());index=n;render();window.scrollTo({top:0,behavior:'instant'});}
-function resultMarkup(){return result.results.map(r=>{const choice=r.correct!==null;const value=choice?`${r.correct} / ${r.answered} 정답`:`${r.answered} / ${r.total} 응답`;const detail=r.status==='awaiting_review'?'쓰기·말하기 평가 대기':r.status==='not_evaluated'?'채점할 응답 없음':`전체 ${r.total}문항 중 ${r.answered}문항 채점`;return `<div class="resultrow"><div>${esc(r.title)}<small>${esc(detail)}${r.unverified?` · 음원 완료 미확인 ${r.unverified}개`:''}${r.unanswered?` · 미응답 ${r.unanswered}개`:''}</small></div><div class="value">${value}</div></div>`;}).join('');}
-function reportHTML(){return `<!doctype html><html lang="ko"><meta charset="utf-8"><title>보글리쉬 응시 기록</title><style>body{font:16px/1.6 Arial,sans-serif;max-width:850px;margin:40px auto;padding:20px}.resultrow{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid #ccc;padding:12px 0}small{display:block;color:#555}.value{white-space:nowrap}</style><h1>보글리쉬 · General A 응시 기록</h1><p>${esc(result.notice)}</p><p>버전 ${esc(result.version)} · ${esc(new Date(result.generated_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}))} (한국 시간)</p><p>${esc($('summary').textContent)}</p>${resultMarkup()}<p>쓰기·말하기는 평가 전입니다. 다른 형식이나 다음 응시와의 점수 차이를 학습 성장으로 해석할 수 없습니다.</p></html>`;}
+function resultMarkup(){
+ const practice={'GA-B-G':'주어와 동사의 일치, 시제, 수량 표현을 정답 해설과 함께 확인해 보세요.','GA-E-G':'문장 전체의 의미와 절 사이 관계를 먼저 파악한 뒤 문법 형태를 고르는 연습을 해 보세요.','GA-B-V-definition':'뜻을 보고 알맞은 단어를 떠올리는 연습을 해 보세요.','GA-B-V-context':'문장의 앞뒤 의미를 근거로 빈칸에 맞는 단어를 골라 보세요.','GA-E-V-synonym':'비슷한 뜻을 가진 단어를 예문과 함께 비교해 보세요.','GA-E-V-collocation':'단어 하나보다 함께 자주 쓰이는 표현을 묶어서 익혀 보세요.','GA-B-R1':'짧은 글에서 빈칸 앞뒤의 의미와 문장 구조를 확인해 보세요.','GA-B-R2':'시간 표현, 대명사, 연결어를 근거로 문장 순서를 정해 보세요.','GA-E-R3':'누가 어떤 의견을 말했는지 근거 문장에 표시해 보세요.','GA-E-R4':'각 문단의 중심 내용을 한 문장으로 요약하고 제목과 연결해 보세요.','GA-B-L1':'질문에서 묻는 세부 정보를 먼저 확인하고 듣는 연습을 해 보세요.','GA-E-L3':'두 화자의 의견을 따로 정리하고 공통점과 차이를 찾아보세요.','GA-E-L4':'말하는 사람의 결론과 그 결론을 뒷받침하는 이유를 연결해 보세요.'};
+ const domains=result.domains.map(d=>'<div class="resultrow"><div>'+esc(d.title)+'<small>'+d.correct+' / '+d.answered+'개 정답 · 전체 '+d.total+'문항'+(d.unanswered?' · 미응답 '+d.unanswered+'개':'')+(d.unverified?' · 음원 완료 미확인 '+d.unverified+'개':'')+'</small></div><div class="value">'+(d.percent===null?'미응시':d.complete?d.percent+'점 / 100점':'부분 정답률 '+d.percent+'%')+'</div></div>').join('');
+ const tasks=result.results.map(r=>{
+  const wrong=r.questions.filter(q=>q.status==='incorrect');
+  const feedback=!r.answered?'평가할 응답이 없습니다. 먼저 문제를 풀어 주세요.':wrong.length?'이번 응시에서 '+wrong.length+'개를 틀렸습니다. '+(practice[r.id]||'아래 오답의 정답과 근거를 확인해 보세요.'):r.answered<r.total?'채점된 응답은 모두 맞았습니다. 나머지 문항도 풀어 확인해 보세요.':'이번 과제의 문항을 모두 맞았습니다. 다른 문제에서도 같은 유형을 해결할 수 있는지 확인해 보세요.';
+  return '<section class="feedback"><h3>'+esc(names[r.skill])+' · '+esc(r.title)+'</h3><p>'+esc(feedback)+'</p><details><summary>문항별 정답·해설 보기</summary>'+r.questions.map((q,n)=>'<div class="question"><strong>'+(n+1)+'. '+esc(q.prompt)+'</strong><p>'+({correct:'정답',incorrect:'오답',unanswered:'미응답',unverified:'음원 완료 미확인 · 채점 제외'}[q.status])+' · 내 답: '+esc(q.answer||'선택 없음')+'</p><p>정답: '+esc(q.expected)+'</p><p>'+esc(q.rationale)+'</p></div>').join('')+'</details></section>';
+ }).join('');
+ return '<h2>영역별 결과</h2>'+domains+'<p class="muted">일부만 응시한 영역은 채점된 응답에 대한 부분 정답률입니다. 미응답과 끝까지 듣지 않은 음원의 응답은 계산에서 제외합니다. 문항 수가 적거나 일부만 응시한 결과로 전체 실력을 판단하지 마세요.</p><h2>유형별 보완점과 해설</h2>'+tasks;
+}
+function reportHTML(){return `<!doctype html><html lang="ko"><meta charset="utf-8"><title>보글리쉬 응시 기록</title><style>body{font:16px/1.6 Arial,sans-serif;max-width:850px;margin:40px auto;padding:20px}.resultrow{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid #ccc;padding:12px 0}small{display:block;color:#555}.value{white-space:nowrap}</style><h1>보글리쉬 · General A 응시 기록</h1><p>${esc(result.notice)}</p><p>버전 ${esc(result.version)} · ${esc(new Date(result.generated_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}))} (한국 시간)</p><p>${esc($('summary').textContent)}</p>${resultMarkup()}<p>이번에 출제된 문항에서 확인된 결과입니다. 간단·상세 진단이나 반복 응시의 점수 차이를 곧바로 실력 변화로 해석하지 마세요.</p></html>`;}
 function download(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
 function filename(suffix){return `boglish-General-A-${result.generated_at.slice(0,10)}-${suffix}`;}
 async function finish(){
  if(busy())return;checkpoint();$('finish').disabled=true;$('globalError').textContent='';
- try{const scoring=await requestJSON('scoring.json');result=window.gradeTrial(scoring,{mode:state.mode,answers:state.answers,media:state.media});
+ try{const scoring=await requestJSON('scoring.json?v=0.3.0');result=window.gradeTrial(scoring,{mode:state.mode,answers:state.answers,media:state.media});
  $('workspace').hidden=true;$('results').hidden=false;entered=0;$('resultNotice').textContent=result.notice;
  const objective=result.results.filter(r=>r.correct!==null),answered=objective.reduce((s,r)=>s+r.answered,0),correct=objective.reduce((s,r)=>s+r.correct,0),total=result.results.filter(r=>!['Writing','Speaking'].includes(r.skill)).reduce((s,r)=>s+r.total,0);
- $('summary').textContent=`${state.mode==='complete'?'전체':'기본'} 응시 · 객관식 ${total}문항 중 ${answered}문항 채점, ${correct}개 정답 · 경과 ${time((Date.now()-state.started)/1000)} · 화면 이탈 ${state.hidden_count}회. 응시하지 않은 문항과 음원 완료가 확인되지 않은 문항은 정답률 계산에서 제외합니다.`;
+ $('summary').textContent=`${state.mode==='complete'?'상세 진단':'간단 진단'} 응시 · 객관식 ${total}문항 중 ${answered}문항 채점, ${correct}개 정답 · 경과 ${time((Date.now()-state.started)/1000)} · 화면 이탈 ${state.hidden_count}회. 응시하지 않은 문항과 음원 완료가 확인되지 않은 문항은 정답률 계산에서 제외합니다.`;
  $('resultRows').innerHTML=resultMarkup();window.scrollTo({top:0});
  }catch(e){error(e);}finally{lock();}
 }
-function restart(){if(busy())return;if(state&&!confirm('처음 선택으로 돌아가면 답안과 녹음이 삭제됩니다. 필요한 파일을 다운로드했나요?'))return;blobs.clear();urls.forEach(URL.revokeObjectURL);urls.clear();state=null;result=null;entered=0;index=0;$('workspace').hidden=true;$('results').hidden=true;$('intro').hidden=false;$('globalError').textContent='';window.scrollTo({top:0});}
-$('start').onclick=async()=>{if(busy())return;$('start').disabled=true;try{const mode=document.querySelector('input[name=mode]:checked').value;const bank=await requestJSON('items.json');bank.items=bank.items.filter(i=>mode==='complete'||i.stage==='basic');state={...bank,mode,answers:{},media:{},dwell_seconds:{},started:Date.now(),hidden_count:0};index=0;$('intro').hidden=true;$('workspace').hidden=false;render();}catch(e){$('introError').textContent=e.message;}finally{$('start').disabled=false;}};
-$('micRefresh').onclick=refreshMicrophones;
-$('micCancel').onclick=cancelCapture;
-async function inspectRecordedAudio(blob){
- let ctx;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;ctx=new AC();const audio=await ctx.decodeAudioData(await blob.arrayBuffer());let peak=0;for(let c=0;c<audio.numberOfChannels;c++){const data=audio.getChannelData(c);for(let n=0;n<data.length;n++)peak=Math.max(peak,Math.abs(data[n]));}return{peak,duration:audio.duration};}catch{return null;}finally{ctx?.close().catch(()=>{});}
-}
-function checkMicrophone(raw=false){$('micPreview').pause();return capture('mic-check',10,$('micMessage'),blob=>{if(micURL)URL.revokeObjectURL(micURL);micURL=URL.createObjectURL(blob);$('micPreview').src=micURL;$('micPreview').muted=false;$('micPreview').volume=1;$('micPreview').hidden=false;},3,raw);}
-$('micCheck').onclick=()=>checkMicrophone(false);
-$('micRawCheck').onclick=()=>checkMicrophone(true);
+function restart(){if(busy())return;if(state&&!confirm('처음 선택으로 돌아가면 답안과 결과가 삭제됩니다. 필요한 파일을 다운로드했나요?'))return;blobs.clear();urls.forEach(URL.revokeObjectURL);urls.clear();state=null;result=null;entered=0;index=0;$('workspace').hidden=true;$('results').hidden=true;$('intro').hidden=false;$('globalError').textContent='';window.scrollTo({top:0});}
+$('start').onclick=async()=>{if(busy())return;$('start').disabled=true;try{const mode=document.querySelector('input[name=mode]:checked').value;const bank=await requestJSON('items.json?v=0.3.0');bank.items=bank.items.filter(i=>mode==='complete'||i.stage==='basic');state={...bank,mode,answers:{},media:{},dwell_seconds:{},started:Date.now(),hidden_count:0};index=0;$('intro').hidden=true;$('workspace').hidden=false;render();}catch(e){$('introError').textContent=e.message;}finally{$('start').disabled=false;}};
 $('prev').onclick=()=>move(index-1);$('next').onclick=()=>move(index+1);$('finish').onclick=finish;$('home').onclick=restart;$('restart').onclick=restart;
 $('back').onclick=()=>{$('results').hidden=true;$('workspace').hidden=false;render();};
 $('downloadReport').onclick=()=>download(new Blob([reportHTML()],{type:'text/html;charset=utf-8'}),filename('result.html'));
 $('print').onclick=()=>window.print();
-$('download').onclick=async()=>{const b=$('download');b.disabled=true;$('exportMessage').textContent='파일을 준비하고 있습니다…';try{const zip=new JSZip();zip.file('result.html',reportHTML());zip.file('responses.json',JSON.stringify({schema_version:1,result,answers:state.answers,media:state.media,dwell_seconds:state.dwell_seconds,started_at:new Date(state.started).toISOString(),hidden_count:state.hidden_count,assessment_status:'writing_and_speaking_awaiting_review'},null,2));for(const [key,blob]of blobs)zip.file(`recordings/${key}.${blob.type.includes('mp4')?'m4a':'webm'}`,blob);zip.file('README.txt','결과: result.html\n답안·진행 기록: responses.json\n말하기: recordings 폴더\n쓰기·말하기는 평가 전이며 공식 APTIS 점수·CEFR로 환산하지 않았습니다.\n이 파일은 본인의 답안과 목소리를 포함합니다. 직접 보관하거나 선택한 평가자에게 전달하세요.');download(await zip.generateAsync({type:'blob'}),filename('responses.zip'));$('exportMessage').textContent='다운로드를 요청했습니다. 다운로드 폴더에서 ZIP 파일이 저장되었는지 확인해 주세요.';}catch(e){$('exportMessage').textContent='파일을 만들지 못했습니다. 이 화면을 닫지 말고 다시 시도해 주세요.';}finally{b.disabled=false;}};
+$('download').onclick=async()=>{const b=$('download');b.disabled=true;$('exportMessage').textContent='파일을 준비하고 있습니다…';try{const zip=new JSZip();zip.file('result.html',reportHTML());zip.file('responses.json',JSON.stringify({schema_version:1,result,answers:state.answers,media:state.media,dwell_seconds:state.dwell_seconds,started_at:new Date(state.started).toISOString(),hidden_count:state.hidden_count,assessment_status:'objective_diagnostic_only'},null,2));for(const [key,blob]of blobs)zip.file(`recordings/${key}.${blob.type.includes('mp4')?'m4a':'webm'}`,blob);zip.file('README.txt','결과와 해설: result.html\n답안·진행 기록: responses.json\n자체 문항 정답률이며 공식 APTIS 성적·예상 성적이 아닙니다.\n파일을 직접 다운로드해 보관하세요.');download(await zip.generateAsync({type:'blob'}),filename('responses.zip'));$('exportMessage').textContent='다운로드를 요청했습니다. 다운로드 폴더에서 ZIP 파일이 저장되었는지 확인해 주세요.';}catch(e){$('exportMessage').textContent='파일을 만들지 못했습니다. 이 화면을 닫지 말고 다시 시도해 주세요.';}finally{b.disabled=false;}};
 document.addEventListener('visibilitychange',()=>{if(state&&document.hidden)state.hidden_count++;});
 window.addEventListener('beforeunload',e=>{if(state||busy()){e.preventDefault();e.returnValue='';}});
 setInterval(()=>{if(state)$('elapsed').textContent=`경과 ${time((Date.now()-state.started)/1000)}`;},1000);
