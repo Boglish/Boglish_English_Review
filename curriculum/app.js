@@ -1,0 +1,14 @@
+(()=>{'use strict';
+const parts=[...document.querySelectorAll('details.part')];
+const toggle=document.querySelector('#toggle-all');
+const update=()=>{toggle.textContent=parts.every(p=>p.open)?'모두 접기':'모두 펼치기';};
+toggle.hidden=false;
+toggle.addEventListener('click',()=>{const open=!parts.every(p=>p.open);parts.forEach(p=>p.open=open);update();});
+parts.forEach(p=>p.addEventListener('toggle',update));
+const revealHash=()=>{let id;try{id=decodeURIComponent(location.hash.slice(1));}catch{return;}if(!id)return;const target=document.getElementById(id);if(!target)return;const part=target.matches('details.part')?target:target.closest('details.part');if(part)part.open=true;};
+window.addEventListener('hashchange',revealHash);revealHash();
+document.querySelectorAll('.jump a').forEach(a=>a.addEventListener('click',()=>{const target=document.getElementById(a.hash.slice(1));if(target?.matches('details.part'))target.open=true;}));
+let printState;
+window.addEventListener('beforeprint',()=>{printState=parts.map(p=>p.open);parts.forEach(p=>p.open=true);});
+window.addEventListener('afterprint',()=>{if(printState)parts.forEach((p,i)=>p.open=printState[i]);});
+})();
